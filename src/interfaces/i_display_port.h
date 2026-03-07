@@ -1,14 +1,12 @@
 #pragma once
 
-class IDisplay {
+class IDisplayPort {
 public:
-  virtual ~IDisplay() = default;
+  virtual ~IDisplayPort() = default;
 
   virtual void init() = 0;
-  virtual void clear() = 0;
+  virtual void clearFrame() = 0;
   virtual void clearRect(int x, int y, int w, int h) = 0;
-  virtual void present() = 0;
-
   virtual void drawEye(int x,
                        int y,
                        int radius,
@@ -20,4 +18,5 @@ public:
                        float lowerLid) = 0;
   virtual void drawPupil(int x, int y, int radius) = 0;
   virtual void drawText(int x, int y, const char* text) = 0;
+  virtual void present() = 0;
 };

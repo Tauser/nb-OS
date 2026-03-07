@@ -1,13 +1,18 @@
 #pragma once
 
+#include "expression_types.h"
+
 struct EyeModel {
   int centerX = 0;
   int centerY = 0;
   int eyeRadius = 30;
 
-  int pupilOffsetX = 0;
-  int pupilOffsetY = 0;
-  int pupilRadius = 8;
+  float openness = 1.0f;
+  float upperLid = 0.18f;
+  float lowerLid = 0.10f;
+  float tiltDeg = 0.0f;
+  float squashY = 1.0f;
+  float stretchX = 1.0f;
 
-  float openness = 1.0f; // 1.0 = aberto, 0.0 = fechado
+  ExpressionType expression = ExpressionType::Neutral;
 };

@@ -11,7 +11,7 @@
       "attrs": { "psram": "8MB" }
     },
     {
-      "type": "board-st7789",
+      "type": "wokwi-ili9341",
       "id": "tft",
       "top": -276.1,
       "left": 216.4,
@@ -22,12 +22,10 @@
   "connections": [
     ["esp:GND.1", "tft:GND", "black", []],
     ["esp:3V3.1", "tft:VCC", "red", []],
-    ["esp:16", "tft:BLK", "red", []],
-    ["esp:21", "tft:SCL", "green", []],
-    ["esp:47", "tft:SDA", "blue", []],
+    ["esp:21", "tft:SCK", "green", []],
+    ["esp:47", "tft:MOSI", "blue", []],
     ["esp:14", "tft:CS", "orange", []],
-    ["esp:48", "tft:DC", "purple", []],
-    ["esp:EN", "tft:RES", "yellow", []],
+    ["esp:48", "tft:D/C", "purple", []],
     ["esp:TX", "$serialMonitor:RX", "", []],
     ["esp:RX", "$serialMonitor:TX", "", []]
   ],

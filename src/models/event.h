@@ -4,7 +4,7 @@
 
 struct Event {
   EventType type = EventType::None;
-  int source = 0;
+  EventSource source = EventSource::Unknown;
   int value = 0;
   uint32_t timestamp = 0;
 };

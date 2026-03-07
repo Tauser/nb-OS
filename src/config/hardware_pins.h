@@ -16,7 +16,7 @@ namespace Display {
   constexpr int DC = 48;
   constexpr int CS = 14;
   constexpr int RST = -1;
-  constexpr int BL = 16;
+  constexpr int BL = -1;
 #else
   // Real hardware profile (Freenove ESP32-S3-WROOM CAM + ST7789 2")
   constexpr int SCLK = 47;
@@ -64,3 +64,5 @@ namespace Touch {
 }
 
 } // namespace HardwarePins
+
+

@@ -1,40 +1,74 @@
 #pragma once
 
+#ifndef NCOS_SIM_MODE
+#define NCOS_SIM_MODE 0
+#endif
+
+#ifndef NCOS_SIM_ULTRA
+#define NCOS_SIM_ULTRA 0
+#endif
+
 namespace HardwareConfig {
 
 namespace Display {
-  constexpr int WIDTH  = 240;
+  constexpr int WIDTH = 320;
   constexpr int HEIGHT = 240;
 
   constexpr int OFFSET_X = 0;
   constexpr int OFFSET_Y = 0;
   constexpr int ROTATION = 1;
 
-  constexpr int SPI_WRITE_FREQ = 40000000;
-  constexpr int SPI_READ_FREQ  = 16000000;
-
+#if NCOS_SIM_MODE
+  // Turbo sim profile for Wokwi stability.
+  constexpr int SPI_WRITE_FREQ = 20000000;
+  constexpr int SPI_READ_FREQ = 10000000;
   constexpr bool INVERT = false;
   constexpr bool RGB_ORDER = false;
+#else
+  constexpr int SPI_WRITE_FREQ = 40000000;
+  constexpr int SPI_READ_FREQ = 16000000;
+  constexpr bool INVERT = false;
+  constexpr bool RGB_ORDER = true;
+#endif
 }
 
 namespace Face {
-  constexpr int LEFT_EYE_X   = 80;
-  constexpr int RIGHT_EYE_X  = 160;
-  constexpr int EYE_Y        = 120;
-  constexpr int EYE_RADIUS   = 30;
+  constexpr int LEFT_EYE_X = 120;
+  constexpr int RIGHT_EYE_X = 200;
+  constexpr int EYE_Y = 120;
+#if NCOS_SIM_MODE
+  constexpr int EYE_RADIUS = 32;
+#else
+  constexpr int EYE_RADIUS = 34;
+#endif
 
   constexpr int PUPIL_RADIUS = 8;
   constexpr int MAX_PUPIL_OFFSET_X = 6;
   constexpr int MAX_PUPIL_OFFSET_Y = 4;
 
+#if NCOS_SIM_MODE && NCOS_SIM_ULTRA
+  constexpr unsigned long BLINK_MIN_INTERVAL_MS = 5000;
+  constexpr unsigned long BLINK_MAX_INTERVAL_MS = 9000;
+  constexpr unsigned long LOOK_INTERVAL_MS = 2400;
+#else
   constexpr unsigned long BLINK_MIN_INTERVAL_MS = 3500;
   constexpr unsigned long BLINK_MAX_INTERVAL_MS = 6500;
   constexpr unsigned long LOOK_INTERVAL_MS = 1200;
+#endif
 }
 
 namespace System {
+#if NCOS_SIM_MODE && NCOS_SIM_ULTRA
+  constexpr unsigned long HEARTBEAT_INTERVAL_MS = 8000;
+  constexpr unsigned long FACE_FRAME_INTERVAL_MS = 40; // 25 FPS
+#elif NCOS_SIM_MODE
+  constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000;
+  constexpr unsigned long FACE_FRAME_INTERVAL_MS = 66;  // 15 FPS
+#else
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 1000;
   constexpr unsigned long FACE_FRAME_INTERVAL_MS = 33;
+#endif
 }
 
-}
+} // namespace HardwareConfig
+

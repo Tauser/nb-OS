@@ -1,14 +1,15 @@
 #pragma once
 
-#include "../../hal/camera_hal.h"
+#include "../../interfaces/i_camera_port.h"
+#include "../../interfaces/i_vision_service.h"
 
-class VisionService {
+class VisionService : public IVisionService {
 public:
-  explicit VisionService(CameraHAL& cameraHal);
+  explicit VisionService(ICameraPort& cameraPort);
 
-  void init();
-  void update();
+  void init() override;
+  void update() override;
 
 private:
-  CameraHAL& cameraHal_;
+  ICameraPort& cameraPort_;
 };

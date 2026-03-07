@@ -1,4 +1,5 @@
 #include "system_manager.h"
+
 #include "../config/feature_flags.h"
 #include "../models/event.h"
 #include <Arduino.h>
@@ -15,13 +16,13 @@ SystemManager::SystemManager(EventBus& eventBus,
                              Diagnostics& diagnostics,
                              ConfigManager& configManager,
                              StorageManager& storageManager,
-                             FaceService& faceService,
-                             VisionService& visionService)
+                             IVisualService& visualService,
+                             IVisionService& visionService)
     : eventBus_(eventBus),
       diagnostics_(diagnostics),
       configManager_(configManager),
       storageManager_(storageManager),
-      faceService_(faceService),
+      visualService_(visualService),
       visionService_(visionService) {}
 
 void SystemManager::init() {
@@ -38,7 +39,7 @@ void SystemManager::init() {
   }
 
   if (FeatureFlags::DISPLAY_ENABLED) {
-    faceService_.init();
+    visualService_.init();
     logModule(diagnostics_, "[BOOT] Display/Face enabled", true);
   }
 
@@ -63,11 +64,13 @@ void SystemManager::update() {
 
   if (FeatureFlags::DISPLAY_ENABLED && now - lastFrameMs_ >= cfg.faceFrameIntervalMs) {
     lastFrameMs_ = now;
-    faceService_.update(now);
+    visualService_.update(now);
+    publishEvent(EventType::FaceFrameRendered, EventSource::FaceService);
   }
 
   if (FeatureFlags::CAMERA_ENABLED) {
     visionService_.update();
+    publishEvent(EventType::CameraFrameSampled, EventSource::VisionService);
   }
 
   if (now - lastHeartbeatMs_ >= cfg.heartbeatIntervalMs) {
@@ -81,9 +84,10 @@ RobotState SystemManager::getState() const {
   return state_;
 }
 
-void SystemManager::publishEvent(EventType type, int value) {
+void SystemManager::publishEvent(EventType type, EventSource source, int value) {
   Event event;
   event.type = type;
+  event.source = source;
   event.value = value;
   event.timestamp = millis();
   eventBus_.publish(event);
@@ -91,9 +95,13 @@ void SystemManager::publishEvent(EventType type, int value) {
 
 const char* SystemManager::getStateName() const {
   switch (state_) {
-    case RobotState::Boot: return "Boot";
-    case RobotState::Idle: return "Idle";
-    case RobotState::Error: return "Error";
-    default: return "Unknown";
+    case RobotState::Boot:
+      return "Boot";
+    case RobotState::Idle:
+      return "Idle";
+    case RobotState::Error:
+      return "Error";
+    default:
+      return "Unknown";
   }
 }

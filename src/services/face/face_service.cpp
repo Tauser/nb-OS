@@ -1,10 +1,69 @@
 #include "face_service.h"
-#include "../../config/hardware_config.h"
-#include <Arduino.h>
 
-FaceService::FaceService(DisplayHAL& displayHal)
-  : displayHal_(displayHal),
-    renderer_(displayHal) {
+#include "../../config/hardware_config.h"
+#include "../../utils/math_utils.h"
+#include <Arduino.h>
+#include <math.h>
+
+namespace {
+#ifndef NCOS_SIM_MODE
+#define NCOS_SIM_MODE 0
+#endif
+
+constexpr unsigned long kPerfWindowMs = 5000;
+
+struct BlinkFrame {
+  unsigned long tMs;
+  float upper;
+  float lower;
+};
+
+constexpr BlinkFrame kBlink[] = {
+  {0, 0.12f, 0.05f},
+  {60, 0.70f, 0.20f},
+  {95, 0.92f, 0.35f},
+  {140, 0.35f, 0.12f},
+  {180, 0.12f, 0.05f}
+};
+
+EmotionPreset makePreset(float tilt, float squash, float stretch, float up, float low) {
+  EmotionPreset p;
+  p.tiltDeg = tilt;
+  p.squashY = squash;
+  p.stretchX = stretch;
+  p.upperLid = up;
+  p.lowerLid = low;
+  return p;
+}
+
+EmotionPreset presetFor(ExpressionType e, bool left) {
+  switch (e) {
+    case ExpressionType::Neutral:
+      return makePreset(0.0f, 1.00f, 1.00f, 0.18f, 0.10f);
+    case ExpressionType::Curiosity:
+      return makePreset(left ? -6.0f : 6.0f, 0.96f, 1.06f, 0.12f, 0.04f);
+    case ExpressionType::FaceRecognized:
+      return makePreset(left ? -4.0f : 4.0f, 1.02f, 1.03f, 0.14f, 0.08f);
+    case ExpressionType::BatteryAlert:
+      return makePreset(0.0f, 0.88f, 0.92f, 0.32f, 0.22f);
+    case ExpressionType::Angry:
+      return makePreset(left ? 12.0f : -12.0f, 0.82f, 1.10f, 0.38f, 0.10f);
+    case ExpressionType::Sad:
+      return makePreset(left ? -10.0f : 10.0f, 0.90f, 0.96f, 0.30f, 0.16f);
+    case ExpressionType::Blink:
+      return makePreset(0.0f, 0.10f, 1.02f, 0.48f, 0.48f);
+    default:
+      return makePreset(0.0f, 1.00f, 1.00f, 0.18f, 0.10f);
+  }
+}
+
+float lerpF(float a, float b, float t) {
+  return a + ((b - a) * t);
+}
+}
+
+FaceService::FaceService(IDisplayPort& displayPort)
+  : displayPort_(displayPort), renderer_(displayPort) {
 }
 
 void FaceService::init() {
@@ -13,27 +72,58 @@ void FaceService::init() {
   leftEye_.centerX = HardwareConfig::Face::LEFT_EYE_X;
   leftEye_.centerY = HardwareConfig::Face::EYE_Y;
   leftEye_.eyeRadius = HardwareConfig::Face::EYE_RADIUS;
-  leftEye_.pupilRadius = HardwareConfig::Face::PUPIL_RADIUS;
-  leftEye_.openness = 1.0f;
 
   rightEye_.centerX = HardwareConfig::Face::RIGHT_EYE_X;
   rightEye_.centerY = HardwareConfig::Face::EYE_Y;
   rightEye_.eyeRadius = HardwareConfig::Face::EYE_RADIUS;
-  rightEye_.pupilRadius = HardwareConfig::Face::PUPIL_RADIUS;
-  rightEye_.openness = 1.0f;
 
-  displayHal_.init();
+  targetLeftEye_ = leftEye_;
+  targetRightEye_ = rightEye_;
 
-  scheduleNextBlink(millis());
-  lastLookChangeMs_ = millis();
+  displayPort_.init();
 
+  const unsigned long now = millis();
+  scheduleNextBlink(now);
+  lastIdleMotionMs_ = now;
+  lastSmoothMs_ = now;
+  perf_.windowStartMs = now;
+
+  applyStateToTargets();
+  smoothEyes(now);
   renderer_.render(leftEye_, rightEye_);
 }
 
+void FaceService::requestExpression(ExpressionType expression, EyeAnimPriority priority, unsigned long holdMs) {
+  requestedExpression_ = expression;
+  requestedPriority_ = priority;
+  expressionHoldUntilMs_ = holdMs > 0 ? (millis() + holdMs) : 0;
+}
+
 void FaceService::update(unsigned long nowMs) {
+  stepStateMachine(nowMs);
+  applyStateToTargets();
   updateBlink(nowMs);
-  updateIdleLook(nowMs);
-  renderer_.render(leftEye_, rightEye_);
+  updateIdleMotion(nowMs);
+  smoothEyes(nowMs);
+
+  const unsigned long t0 = micros();
+  const bool rendered = renderer_.render(leftEye_, rightEye_);
+  const unsigned long renderUs = micros() - t0;
+
+  recordPerf(nowMs, rendered, renderUs);
+}
+
+void FaceService::stepStateMachine(unsigned long nowMs) {
+  if (expressionHoldUntilMs_ > 0 && nowMs > expressionHoldUntilMs_) {
+    requestedExpression_ = ExpressionType::Neutral;
+    requestedPriority_ = EyeAnimPriority::Idle;
+    expressionHoldUntilMs_ = 0;
+  }
+
+  if (!blinking_ && static_cast<int>(requestedPriority_) >= static_cast<int>(currentPriority_)) {
+    currentExpression_ = requestedExpression_;
+    currentPriority_ = requestedPriority_;
+  }
 }
 
 void FaceService::scheduleNextBlink(unsigned long nowMs) {
@@ -44,6 +134,31 @@ void FaceService::scheduleNextBlink(unsigned long nowMs) {
   nextBlinkAtMs_ = nowMs + interval;
 }
 
+void FaceService::applyStateToTargets() {
+  const EmotionPreset l = presetFor(currentExpression_, true);
+  const EmotionPreset r = presetFor(currentExpression_, false);
+
+  targetLeftEye_.expression = currentExpression_;
+  targetRightEye_.expression = currentExpression_;
+
+  targetLeftEye_.tiltDeg = l.tiltDeg;
+  targetRightEye_.tiltDeg = r.tiltDeg;
+
+  targetLeftEye_.squashY = l.squashY;
+  targetRightEye_.squashY = r.squashY;
+
+  targetLeftEye_.stretchX = l.stretchX;
+  targetRightEye_.stretchX = r.stretchX;
+
+  targetLeftEye_.upperLid = l.upperLid;
+  targetRightEye_.upperLid = r.upperLid;
+  targetLeftEye_.lowerLid = l.lowerLid;
+  targetRightEye_.lowerLid = r.lowerLid;
+
+  targetLeftEye_.openness = baseOpenness_;
+  targetRightEye_.openness = baseOpenness_;
+}
+
 void FaceService::updateBlink(unsigned long nowMs) {
   if (!blinking_ && nowMs >= nextBlinkAtMs_) {
     blinking_ = true;
@@ -51,56 +166,132 @@ void FaceService::updateBlink(unsigned long nowMs) {
   }
 
   if (!blinking_) {
-    leftEye_.openness = 1.0f;
-    rightEye_.openness = 1.0f;
     return;
   }
 
   const unsigned long elapsed = nowMs - blinkStartMs_;
+  const size_t last = (sizeof(kBlink) / sizeof(kBlink[0])) - 1;
 
-  if (elapsed < 50) {
-    leftEye_.openness = 1.0f;
-    rightEye_.openness = 1.0f;
-  } else if (elapsed < 100) {
-    leftEye_.openness = 0.6f;
-    rightEye_.openness = 0.6f;
-  } else if (elapsed < 150) {
-    leftEye_.openness = 0.15f;
-    rightEye_.openness = 0.15f;
-  } else if (elapsed < 200) {
-    leftEye_.openness = 0.6f;
-    rightEye_.openness = 0.6f;
-  } else if (elapsed < 240) {
-    leftEye_.openness = 1.0f;
-    rightEye_.openness = 1.0f;
-  } else {
+  if (elapsed >= kBlink[last].tMs) {
     blinking_ = false;
-    leftEye_.openness = 1.0f;
-    rightEye_.openness = 1.0f;
     scheduleNextBlink(nowMs);
-  }
-}
-
-void FaceService::updateIdleLook(unsigned long nowMs) {
-  if (nowMs - lastLookChangeMs_ < HardwareConfig::Face::LOOK_INTERVAL_MS) {
     return;
   }
 
-  lastLookChangeMs_ = nowMs;
+  for (size_t i = 0; i < last; ++i) {
+    const BlinkFrame& a = kBlink[i];
+    const BlinkFrame& b = kBlink[i + 1];
 
-  const int offsetX = random(
-    -HardwareConfig::Face::MAX_PUPIL_OFFSET_X,
-     HardwareConfig::Face::MAX_PUPIL_OFFSET_X + 1
-  );
+    if (elapsed < a.tMs || elapsed > b.tMs) {
+      continue;
+    }
 
-  const int offsetY = random(
-    -HardwareConfig::Face::MAX_PUPIL_OFFSET_Y,
-     HardwareConfig::Face::MAX_PUPIL_OFFSET_Y + 1
-  );
+    const float t = static_cast<float>(elapsed - a.tMs) / static_cast<float>(b.tMs - a.tMs);
+    const float e = easeInOutCubic(t);
+    const float up = lerpF(a.upper, b.upper, e);
+    const float low = lerpF(a.lower, b.lower, e);
 
-  leftEye_.pupilOffsetX = offsetX;
-  leftEye_.pupilOffsetY = offsetY;
+    targetLeftEye_.upperLid = up;
+    targetRightEye_.upperLid = up;
+    targetLeftEye_.lowerLid = low;
+    targetRightEye_.lowerLid = low;
+    break;
+  }
+}
 
-  rightEye_.pupilOffsetX = offsetX;
-  rightEye_.pupilOffsetY = offsetY;
+void FaceService::updateIdleMotion(unsigned long nowMs) {
+  if (nowMs - lastIdleMotionMs_ < HardwareConfig::Face::LOOK_INTERVAL_MS) {
+    return;
+  }
+
+  lastIdleMotionMs_ = nowMs;
+
+  if (currentExpression_ == ExpressionType::FaceRecognized) {
+    baseOpenness_ = random(102, 111) / 100.0f;
+  } else {
+    baseOpenness_ = random(95, 103) / 100.0f;
+  }
+
+  baseOpenness_ = MathUtils::clamp(baseOpenness_, 0.90f, 1.12f);
+}
+
+void FaceService::smoothEyes(unsigned long nowMs) {
+  const unsigned long dtMs = nowMs - lastSmoothMs_;
+  lastSmoothMs_ = nowMs;
+
+  const float dt = static_cast<float>(dtMs) / 1000.0f;
+  // 14 Hz critically damped-ish response.
+  float alpha = 1.0f - expf(-14.0f * dt);
+  alpha = MathUtils::clamp(alpha, 0.08f, 0.45f);
+
+  leftEye_.openness = lerpF(leftEye_.openness, targetLeftEye_.openness, alpha);
+  rightEye_.openness = lerpF(rightEye_.openness, targetRightEye_.openness, alpha);
+
+  leftEye_.upperLid = lerpF(leftEye_.upperLid, targetLeftEye_.upperLid, alpha);
+  rightEye_.upperLid = lerpF(rightEye_.upperLid, targetRightEye_.upperLid, alpha);
+
+  leftEye_.lowerLid = lerpF(leftEye_.lowerLid, targetLeftEye_.lowerLid, alpha);
+  rightEye_.lowerLid = lerpF(rightEye_.lowerLid, targetRightEye_.lowerLid, alpha);
+
+  leftEye_.tiltDeg = lerpF(leftEye_.tiltDeg, targetLeftEye_.tiltDeg, alpha);
+  rightEye_.tiltDeg = lerpF(rightEye_.tiltDeg, targetRightEye_.tiltDeg, alpha);
+
+  leftEye_.squashY = lerpF(leftEye_.squashY, targetLeftEye_.squashY, alpha);
+  rightEye_.squashY = lerpF(rightEye_.squashY, targetRightEye_.squashY, alpha);
+
+  leftEye_.stretchX = lerpF(leftEye_.stretchX, targetLeftEye_.stretchX, alpha);
+  rightEye_.stretchX = lerpF(rightEye_.stretchX, targetRightEye_.stretchX, alpha);
+
+  leftEye_.expression = targetLeftEye_.expression;
+  rightEye_.expression = targetRightEye_.expression;
+}
+
+float FaceService::easeInOutCubic(float t) const {
+  if (t < 0.5f) {
+    return 4.0f * t * t * t;
+  }
+  const float k = (-2.0f * t) + 2.0f;
+  return 1.0f - ((k * k * k) / 2.0f);
+}
+
+void FaceService::recordPerf(unsigned long nowMs, bool rendered, unsigned long renderUs) {
+  perf_.updates++;
+
+  if (rendered) {
+    perf_.renderedFrames++;
+    perf_.avgRenderUsAccum += renderUs;
+    if (renderUs > perf_.maxRenderUs) {
+      perf_.maxRenderUs = renderUs;
+    }
+  } else {
+    perf_.droppedFrames++;
+  }
+
+  if (nowMs - perf_.windowStartMs < kPerfWindowMs) {
+    return;
+  }
+
+#if NCOS_SIM_MODE
+  Serial.print("[FACE_PERF] updates=");
+  Serial.print(perf_.updates);
+  Serial.print(" rendered=");
+  Serial.print(perf_.renderedFrames);
+  Serial.print(" skipped=");
+  Serial.print(perf_.droppedFrames);
+  Serial.print(" avg_us=");
+  if (perf_.renderedFrames > 0) {
+    Serial.print(perf_.avgRenderUsAccum / perf_.renderedFrames);
+  } else {
+    Serial.print(0);
+  }
+  Serial.print(" max_us=");
+  Serial.println(perf_.maxRenderUs);
+#endif
+
+  perf_.windowStartMs = nowMs;
+  perf_.updates = 0;
+  perf_.renderedFrames = 0;
+  perf_.droppedFrames = 0;
+  perf_.maxRenderUs = 0;
+  perf_.avgRenderUsAccum = 0;
 }
