@@ -17,13 +17,15 @@ SystemManager::SystemManager(EventBus& eventBus,
                              ConfigManager& configManager,
                              StorageManager& storageManager,
                              IVisualService& visualService,
-                             IVisionService& visionService)
+                             IVisionService& visionService,
+                             ISensorHub& sensorHub)
     : eventBus_(eventBus),
       diagnostics_(diagnostics),
       configManager_(configManager),
       storageManager_(storageManager),
       visualService_(visualService),
-      visionService_(visionService) {}
+      visionService_(visionService),
+      sensorHub_(sensorHub) {}
 
 void SystemManager::init() {
   diagnostics_.begin();
@@ -46,6 +48,11 @@ void SystemManager::init() {
   if (FeatureFlags::CAMERA_ENABLED) {
     visionService_.init();
     logModule(diagnostics_, "[BOOT] Camera/Vision enabled", true);
+  }
+
+  if (FeatureFlags::IMU_ENABLED || FeatureFlags::TOUCH_ENABLED) {
+    sensorHub_.init();
+    logModule(diagnostics_, "[BOOT] Sensor hub enabled", true);
   }
 
   logModule(diagnostics_, "[BOOT] IMU module planned", FeatureFlags::IMU_ENABLED);
@@ -71,6 +78,12 @@ void SystemManager::update() {
   if (FeatureFlags::CAMERA_ENABLED) {
     visionService_.update();
     publishEvent(EventType::CameraFrameSampled, EventSource::VisionService);
+  }
+
+  if ((FeatureFlags::IMU_ENABLED || FeatureFlags::TOUCH_ENABLED) &&
+      now - lastSensorPollMs_ >= cfg.sensorPollIntervalMs) {
+    lastSensorPollMs_ = now;
+    sensorHub_.update(now);
   }
 
   if (now - lastHeartbeatMs_ >= cfg.heartbeatIntervalMs) {

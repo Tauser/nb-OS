@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../interfaces/i_sensor_hub.h"
 #include "../interfaces/i_vision_service.h"
 #include "../interfaces/i_visual_service.h"
 #include "../models/robot_state.h"
@@ -15,7 +16,8 @@ public:
                 ConfigManager& configManager,
                 StorageManager& storageManager,
                 IVisualService& visualService,
-                IVisionService& visionService);
+                IVisionService& visionService,
+                ISensorHub& sensorHub);
 
   void init();
   void update();
@@ -31,8 +33,10 @@ private:
   StorageManager& storageManager_;
   IVisualService& visualService_;
   IVisionService& visionService_;
+  ISensorHub& sensorHub_;
 
   RobotState state_ = RobotState::Boot;
   unsigned long lastHeartbeatMs_ = 0;
   unsigned long lastFrameMs_ = 0;
+  unsigned long lastSensorPollMs_ = 0;
 };

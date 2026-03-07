@@ -1,6 +1,13 @@
 #pragma once
 
+#include "../../models/touch_reading.h"
+
 class TouchDriver {
 public:
-  void init();
+  bool init();
+  bool read(TouchReading& outReading) const;
+  bool isReady() const;
+
+private:
+  bool ready_ = false;
 };

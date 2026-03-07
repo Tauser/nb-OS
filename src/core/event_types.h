@@ -7,12 +7,18 @@ enum class EventType {
   BootComplete,
   Heartbeat,
   FaceFrameRendered,
-  CameraFrameSampled
+  CameraFrameSampled,
+  EVT_TOUCH,
+  EVT_SHAKE,
+  EVT_TILT,
+  EVT_FALL
 };
 
 enum class EventSource {
   Unknown = 0,
   System,
   FaceService,
-  VisionService
+  VisionService,
+  SensorService,
+  InteractionService
 };

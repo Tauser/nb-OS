@@ -4,6 +4,7 @@
 struct RobotConfig {
   unsigned long heartbeatIntervalMs = HardwareConfig::System::HEARTBEAT_INTERVAL_MS;
   unsigned long faceFrameIntervalMs = HardwareConfig::System::FACE_FRAME_INTERVAL_MS;
+  unsigned long sensorPollIntervalMs = HardwareConfig::System::SENSOR_POLL_INTERVAL_MS;
 };
 
 class ConfigManager {

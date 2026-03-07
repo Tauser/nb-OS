@@ -57,18 +57,40 @@ namespace Face {
 #endif
 }
 
+namespace IMU {
+  constexpr int I2C_ADDRESS = 0x68;
+  constexpr float ACCEL_G_PER_LSB = 1.0f / 16384.0f;
+}
+
+namespace Touch {
+#if NCOS_SIM_MODE
+  constexpr int ANALOG_TOUCH_THRESHOLD = 1500;
+#else
+  constexpr int ANALOG_TOUCH_THRESHOLD = 1900;
+#endif
+}
+
+namespace SensorEvents {
+  constexpr float SHAKE_DELTA_G = 0.85f;
+  constexpr float TILT_G_THRESHOLD = 0.45f;
+  constexpr float FALL_Z_G_THRESHOLD = 0.30f;
+  constexpr unsigned long EVENT_DEBOUNCE_MS = 350;
+}
+
 namespace System {
 #if NCOS_SIM_MODE && NCOS_SIM_ULTRA
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 8000;
   constexpr unsigned long FACE_FRAME_INTERVAL_MS = 40; // 25 FPS
+  constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 120;
 #elif NCOS_SIM_MODE
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000;
   constexpr unsigned long FACE_FRAME_INTERVAL_MS = 66;  // 15 FPS
+  constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 100;
 #else
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 1000;
   constexpr unsigned long FACE_FRAME_INTERVAL_MS = 33;
+  constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 50;
 #endif
 }
 
 } // namespace HardwareConfig
-
