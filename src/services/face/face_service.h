@@ -1,18 +1,20 @@
 #pragma once
 
 #include "../../interfaces/i_display_port.h"
+#include "../../interfaces/i_emotion_provider.h"
+#include "../../interfaces/i_face_controller.h"
+#include "../../interfaces/i_visual_service.h"
 #include "face_renderer.h"
 #include "eye_model.h"
-#include "../../interfaces/i_visual_service.h"
 
-class FaceService : public IVisualService {
+class FaceService : public IVisualService, public IFaceController {
 public:
-  explicit FaceService(IDisplayPort& displayPort);
+  FaceService(IDisplayPort& displayPort, const IEmotionProvider& emotionProvider);
 
   void init() override;
   void update(unsigned long nowMs) override;
 
-  void requestExpression(ExpressionType expression, EyeAnimPriority priority, unsigned long holdMs = 0);
+  void requestExpression(ExpressionType expression, EyeAnimPriority priority, unsigned long holdMs = 0) override;
 
 private:
   struct PerfStats {
@@ -24,6 +26,7 @@ private:
     unsigned long avgRenderUsAccum = 0;
   };
 
+  void applyEmotionOutput(unsigned long nowMs);
   void updateBlink(unsigned long nowMs);
   void updateIdleMotion(unsigned long nowMs);
   void scheduleNextBlink(unsigned long nowMs);
@@ -34,6 +37,7 @@ private:
   float easeInOutCubic(float t) const;
 
   IDisplayPort& displayPort_;
+  const IEmotionProvider& emotionProvider_;
   FaceRenderer renderer_;
 
   EyeModel leftEye_;
@@ -53,6 +57,7 @@ private:
 
   unsigned long lastIdleMotionMs_ = 0;
   unsigned long lastSmoothMs_ = 0;
+  unsigned long lastEmotionOutputMs_ = 0;
   float baseOpenness_ = 1.0f;
 
   PerfStats perf_;

@@ -18,14 +18,16 @@ SystemManager::SystemManager(EventBus& eventBus,
                              StorageManager& storageManager,
                              IVisualService& visualService,
                              IVisionService& visionService,
-                             ISensorHub& sensorHub)
+                             ISensorHub& sensorHub,
+                             IMotion& motionService)
     : eventBus_(eventBus),
       diagnostics_(diagnostics),
       configManager_(configManager),
       storageManager_(storageManager),
       visualService_(visualService),
       visionService_(visionService),
-      sensorHub_(sensorHub) {}
+      sensorHub_(sensorHub),
+      motionService_(motionService) {}
 
 void SystemManager::init() {
   diagnostics_.begin();
@@ -53,6 +55,11 @@ void SystemManager::init() {
   if (FeatureFlags::IMU_ENABLED || FeatureFlags::TOUCH_ENABLED) {
     sensorHub_.init();
     logModule(diagnostics_, "[BOOT] Sensor hub enabled", true);
+  }
+
+  if (FeatureFlags::SERVO_BUS_ENABLED) {
+    motionService_.init();
+    logModule(diagnostics_, "[BOOT] Neck motion enabled", true);
   }
 
   logModule(diagnostics_, "[BOOT] IMU module planned", FeatureFlags::IMU_ENABLED);
@@ -86,9 +93,15 @@ void SystemManager::update() {
     sensorHub_.update(now);
   }
 
+  if (FeatureFlags::SERVO_BUS_ENABLED && now - lastMotionUpdateMs_ >= cfg.motionUpdateIntervalMs) {
+    lastMotionUpdateMs_ = now;
+    motionService_.update(now);
+  }
+
   if (now - lastHeartbeatMs_ >= cfg.heartbeatIntervalMs) {
     lastHeartbeatMs_ = now;
     publishEvent(EventType::Heartbeat);
+    publishEvent(EventType::EVT_IDLE);
     diagnostics_.printHeartbeat(now, getStateName());
   }
 }

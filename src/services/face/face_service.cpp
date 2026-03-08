@@ -11,6 +11,7 @@ namespace {
 #endif
 
 constexpr unsigned long kPerfWindowMs = 5000;
+constexpr unsigned long kEmotionOutputIntervalMs = HardwareConfig::EmotionOutput::FACE_APPLY_INTERVAL_MS;
 
 struct BlinkFrame {
   unsigned long tMs;
@@ -62,8 +63,8 @@ float lerpF(float a, float b, float t) {
 }
 }
 
-FaceService::FaceService(IDisplayPort& displayPort)
-  : displayPort_(displayPort), renderer_(displayPort) {
+FaceService::FaceService(IDisplayPort& displayPort, const IEmotionProvider& emotionProvider)
+  : displayPort_(displayPort), emotionProvider_(emotionProvider), renderer_(displayPort) {
 }
 
 void FaceService::init() {
@@ -86,6 +87,7 @@ void FaceService::init() {
   scheduleNextBlink(now);
   lastIdleMotionMs_ = now;
   lastSmoothMs_ = now;
+  lastEmotionOutputMs_ = now;
   perf_.windowStartMs = now;
 
   applyStateToTargets();
@@ -100,6 +102,7 @@ void FaceService::requestExpression(ExpressionType expression, EyeAnimPriority p
 }
 
 void FaceService::update(unsigned long nowMs) {
+  applyEmotionOutput(nowMs);
   stepStateMachine(nowMs);
   applyStateToTargets();
   updateBlink(nowMs);
@@ -111,6 +114,28 @@ void FaceService::update(unsigned long nowMs) {
   const unsigned long renderUs = micros() - t0;
 
   recordPerf(nowMs, rendered, renderUs);
+}
+
+void FaceService::applyEmotionOutput(unsigned long nowMs) {
+  if (nowMs - lastEmotionOutputMs_ < kEmotionOutputIntervalMs) {
+    return;
+  }
+  lastEmotionOutputMs_ = nowMs;
+
+  const EmotionState& emo = emotionProvider_.getEmotionState();
+
+  ExpressionType target = ExpressionType::Neutral;
+  if (emo.energy < HardwareConfig::EmotionOutput::FACE_ENERGY_LOW) {
+    target = ExpressionType::BatteryAlert;
+  } else if (emo.valence < HardwareConfig::EmotionOutput::FACE_VALENCE_NEG) {
+    target = ExpressionType::Sad;
+  } else if (emo.curiosity > HardwareConfig::EmotionOutput::FACE_CURIOSITY_HIGH) {
+    target = ExpressionType::Curiosity;
+  } else if (emo.valence > HardwareConfig::EmotionOutput::FACE_VALENCE_POS) {
+    target = ExpressionType::FaceRecognized;
+  }
+
+  requestExpression(target, EyeAnimPriority::Emotion, HardwareConfig::EmotionOutput::FACE_EXPRESSION_HOLD_MS);
 }
 
 void FaceService::stepStateMachine(unsigned long nowMs) {
@@ -206,13 +231,18 @@ void FaceService::updateIdleMotion(unsigned long nowMs) {
 
   lastIdleMotionMs_ = nowMs;
 
+  const EmotionState& emo = emotionProvider_.getEmotionState();
+  const float activity = MathUtils::clamp((emo.arousal * HardwareConfig::EmotionOutput::FACE_ACTIVITY_AROUSAL_WEIGHT) + (emo.energy * HardwareConfig::EmotionOutput::FACE_ACTIVITY_ENERGY_WEIGHT), 0.0f, 1.0f);
+
   if (currentExpression_ == ExpressionType::FaceRecognized) {
     baseOpenness_ = random(102, 111) / 100.0f;
   } else {
     baseOpenness_ = random(95, 103) / 100.0f;
   }
 
-  baseOpenness_ = MathUtils::clamp(baseOpenness_, 0.90f, 1.12f);
+  baseOpenness_ += (activity - 0.5f) * HardwareConfig::EmotionOutput::FACE_ACTIVITY_GAIN;
+  baseOpenness_ -= (1.0f - emo.energy) * HardwareConfig::EmotionOutput::FACE_LOW_ENERGY_GAIN;
+  baseOpenness_ = MathUtils::clamp(baseOpenness_, HardwareConfig::EmotionOutput::FACE_OPENNESS_MIN, HardwareConfig::EmotionOutput::FACE_OPENNESS_MAX);
 }
 
 void FaceService::smoothEyes(unsigned long nowMs) {
@@ -295,3 +325,4 @@ void FaceService::recordPerf(unsigned long nowMs, bool rendered, unsigned long r
   perf_.maxRenderUs = 0;
   perf_.avgRenderUsAccum = 0;
 }
+

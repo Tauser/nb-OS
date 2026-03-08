@@ -7,25 +7,25 @@
       "type": "board-esp32-s3-devkitc-1",
       "id": "esp",
       "top": -240.18,
-      "left": -24.23,
+      "left": 33.37,
       "attrs": { "psram": "8MB" }
     },
     {
       "type": "wokwi-ili9341",
       "id": "tft",
-      "top": -276.1,
-      "left": 216.4,
+      "top": -496.9,
+      "left": -14,
       "rotate": 270,
       "attrs": { "slowUpdate": "1" }
     }
   ],
   "connections": [
-    ["esp:GND.1", "tft:GND", "black", []],
-    ["esp:3V3.1", "tft:VCC", "red", []],
-    ["esp:21", "tft:SCK", "green", []],
-    ["esp:47", "tft:MOSI", "blue", []],
-    ["esp:14", "tft:CS", "orange", []],
-    ["esp:48", "tft:D/C", "purple", []],
+    ["esp:GND.1", "tft:GND", "black", ["h230.35", "v-297.6"]],
+    ["esp:3V3.1", "tft:VCC", "red", ["v-38.4", "h182.35"]],
+    ["esp:21", "tft:SCK", "green", ["h134.4", "v-307.21"]],
+    ["esp:47", "tft:MOSI", "blue", ["h124.8", "v-288.01"]],
+    ["esp:14", "tft:CS", "orange", ["h191.95", "v-288"]],
+    ["esp:48", "tft:D/C", "purple", ["h115.2", "v-268.8"]],
     ["esp:TX", "$serialMonitor:RX", "", []],
     ["esp:RX", "$serialMonitor:TX", "", []]
   ],

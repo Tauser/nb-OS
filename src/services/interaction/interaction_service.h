@@ -20,4 +20,5 @@ private:
   unsigned long shakeCount_ = 0;
   unsigned long tiltCount_ = 0;
   unsigned long fallCount_ = 0;
+  unsigned long motionPoseCount_ = 0;
 };

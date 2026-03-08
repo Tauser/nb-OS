@@ -78,7 +78,7 @@ bool Mpu6050Driver::readRegisters(uint8_t startReg, uint8_t* buffer, int length)
     return false;
   }
 
-  const int requested = Wire.requestFrom(static_cast<int>(addr), length, true);
+  const size_t requested = Wire.requestFrom(static_cast<uint8_t>(addr), static_cast<size_t>(length), true);
   if (requested != length) {
     return false;
   }

@@ -8,6 +8,7 @@ void InteractionService::init() {
   eventBus_.subscribe(EventType::EVT_SHAKE, this);
   eventBus_.subscribe(EventType::EVT_TILT, this);
   eventBus_.subscribe(EventType::EVT_FALL, this);
+  eventBus_.subscribe(EventType::EVT_MOTION_POSE_APPLIED, this);
 }
 
 void InteractionService::update() {
@@ -30,6 +31,10 @@ void InteractionService::onEvent(const Event& event) {
     case EventType::EVT_FALL:
       fallCount_++;
       diagnostics_.logInfo("[SENSORS] EVT_FALL");
+      break;
+    case EventType::EVT_MOTION_POSE_APPLIED:
+      motionPoseCount_++;
+      diagnostics_.logInfo("[MOTION] EVT_MOTION_POSE_APPLIED");
       break;
     default:
       break;

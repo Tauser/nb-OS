@@ -11,7 +11,12 @@ enum class EventType {
   EVT_TOUCH,
   EVT_SHAKE,
   EVT_TILT,
-  EVT_FALL
+  EVT_FALL,
+  EVT_IDLE,
+  EVT_VOICE_ACTIVITY,
+  EVT_MOTION_POSE_APPLIED,
+  EVT_EMOTION_CHANGED,
+  EVT_BEHAVIOR_ACTION
 };
 
 enum class EventSource {
@@ -20,5 +25,8 @@ enum class EventSource {
   FaceService,
   VisionService,
   SensorService,
-  InteractionService
+  MotionService,
+  EmotionService,
+  InteractionService,
+  BehaviorService
 };
