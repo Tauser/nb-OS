@@ -31,10 +31,12 @@ enum class EventType {
   EVT_GESTURE_PLAYED,
   EVT_ROUTINE_STATE_CHANGED,
   EVT_MOOD_CHANGED,
+  EVT_MOOD_PROFILE_CHANGED,
   EVT_ENGAGEMENT_CHANGED,
   EVT_PREFERENCE_UPDATED,
   EVT_PERSONA_UPDATED,
   EVT_AFFINITY_CHANGED,
+  EVT_MEMORY_UPDATED,
   EVT_HEALTH_STATUS,
   EVT_HEALTH_ANOMALY,
   EVT_SELF_TEST_RESULT,
@@ -72,8 +74,10 @@ enum class EventSource {
   PreferenceMemoryService,
   PersonaService,
   AffinityService,
+  MemoryService,
   HealthMonitorService,
   SelfTestService,
   SafeModeService,
   OTAService
 };
+

@@ -22,4 +22,6 @@ private:
   AttentionFocus focus_ = AttentionFocus::Idle;
   unsigned long focusUntilMs_ = 0;
   unsigned long lastInteractionMs_ = 0;
+  unsigned long lastInternalPulseMs_ = 0;
+  unsigned long lastScanAttemptMs_ = 0;
 };

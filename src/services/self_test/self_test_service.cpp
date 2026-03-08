@@ -6,6 +6,10 @@
 #include "../../models/motion_pose.h"
 #include <Arduino.h>
 
+#ifndef NCOS_SIM_MODE
+#define NCOS_SIM_MODE 0
+#endif
+
 SelfTestService::SelfTestService(EventBus& eventBus,
                                  Diagnostics& diagnostics,
                                  IFaceController& faceController,
@@ -121,11 +125,13 @@ void SelfTestService::complete(unsigned long nowMs) {
   event.timestamp = nowMs;
   eventBus_.publish(event);
 
+#if !NCOS_SIM_MODE
   if (failureMask_ == 0) {
     diagnostics_.logInfo("[SELF_TEST] passed");
   } else {
     diagnostics_.logError("[SELF_TEST] failed");
   }
+#endif
 }
 
 void SelfTestService::markFailure(FailureBit failure) {

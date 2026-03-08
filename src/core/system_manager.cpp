@@ -5,7 +5,13 @@
 #include "../models/event.h"
 #include <Arduino.h>
 
+#ifndef NCOS_SIM_MODE
+#define NCOS_SIM_MODE 0
+#endif
+
 namespace {
+constexpr unsigned long kFrameScheduleMaxSlipMultiplier = 3;
+
 void logModule(Diagnostics& diagnostics, const char* moduleName, bool enabled) {
   if (enabled) {
     diagnostics.logInfo(moduleName);
@@ -128,10 +134,23 @@ void SystemManager::update() {
     heartbeatInterval = scaledInterval(heartbeatInterval, HardwareConfig::Recovery::SAFE_MODE_HEARTBEAT_INTERVAL_SCALE);
   }
 
-  if (FeatureFlags::DISPLAY_ENABLED && now - lastFrameMs_ >= faceInterval) {
-    lastFrameMs_ = now;
-    visualService_.update(now);
-    publishEvent(EventType::FaceFrameRendered, EventSource::FaceService);
+  if (FeatureFlags::DISPLAY_ENABLED) {
+    if (lastFrameMs_ == 0) {
+      lastFrameMs_ = now;
+    }
+
+    if (now - lastFrameMs_ >= faceInterval) {
+      const unsigned long maxSlipMs = faceInterval * kFrameScheduleMaxSlipMultiplier;
+      if (now - lastFrameMs_ > maxSlipMs) {
+        // Drop backlog to avoid bursty catch-up and visible stutter.
+        lastFrameMs_ = now;
+      } else {
+        lastFrameMs_ += faceInterval;
+      }
+
+      visualService_.update(lastFrameMs_);
+      publishEvent(EventType::FaceFrameRendered, EventSource::FaceService);
+    }
   }
 
   const bool cameraAllowed = (powerMode_ != PowerMode::Sleep) && !safeMode_;
@@ -155,7 +174,9 @@ void SystemManager::update() {
     lastHeartbeatMs_ = now;
     publishEvent(EventType::Heartbeat);
     publishEvent(EventType::EVT_IDLE);
+#if !NCOS_SIM_MODE
     diagnostics_.printHeartbeat(now, getStateName());
+#endif
   }
 }
 
@@ -211,3 +232,4 @@ unsigned long SystemManager::scaledInterval(unsigned long baseMs, float scale) c
   const unsigned long scaled = static_cast<unsigned long>(static_cast<float>(baseMs) * scale);
   return (scaled == 0UL) ? 1UL : scaled;
 }
+

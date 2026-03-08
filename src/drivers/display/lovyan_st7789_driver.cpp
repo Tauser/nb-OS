@@ -116,13 +116,11 @@ void LovyanSt7789Driver::drawEye(int x,
 
   const uint16_t kEyeMain = 0x7DFF;
 
-  const float lidClosure = MathUtils::clamp(upperLid + lowerLid, 0.0f, 1.0f);
-  // Softer lid influence keeps neutral proportions closer to the Vector-like reference.
-  const float lidOpen = MathUtils::clamp(1.0f - (0.65f * lidClosure), 0.08f, 1.0f);
-  const float effectiveOpen = MathUtils::clamp(openness * lidOpen, 0.08f, 1.0f);
+  // Base openness keeps the eye alive; lids are applied as explicit top/bottom cuts.
+  const float baseOpen = MathUtils::clamp(openness * (1.0f - (0.30f * (upperLid + lowerLid))), 0.10f, 1.0f);
 
   const int eyeWidth = static_cast<int>((radius * 2) * stretchX);
-  int eyeHeight = static_cast<int>((radius * 2) * squashY * effectiveOpen);
+  int eyeHeight = static_cast<int>((radius * 2) * squashY * baseOpen);
   if (eyeHeight < 4) eyeHeight = 4;
 
   const int left = x - (eyeWidth / 2);
@@ -132,18 +130,29 @@ void LovyanSt7789Driver::drawEye(int x,
   if (corner < 4) corner = 4;
   if (corner > eyeHeight / 2) corner = eyeHeight / 2;
 
-  // Base Vector-style eye: rounded square.
+  // EMO/Eilik-inspired rounded rectangle, no pupil.
   lcd_.fillRoundRect(left, top, eyeWidth, eyeHeight, corner, kEyeMain);
 
-  // Tilt is applied as a subtle vertical shear by trimming thin strips.
-  const int shear = static_cast<int>(tiltDeg * 0.08f);
+  // Top/bottom lid cuts create stronger expression readability.
+  const int topCut = static_cast<int>(eyeHeight * upperLid * 0.70f);
+  const int bottomCut = static_cast<int>(eyeHeight * lowerLid * 0.70f);
+  if (topCut > 0) {
+    lcd_.fillRect(left - 1, top - 1, eyeWidth + 2, topCut, TFT_BLACK);
+  }
+  if (bottomCut > 0) {
+    lcd_.fillRect(left - 1, top + eyeHeight - bottomCut + 1, eyeWidth + 2, bottomCut, TFT_BLACK);
+  }
+
+  // Tilt as stronger shear to separate expressions (angry/sad/curious) visually.
+  const int shear = static_cast<int>(tiltDeg * 0.18f);
+  const int bandH = eyeHeight / 3;
   if (shear > 0) {
-    lcd_.fillRect(left, top, shear, eyeHeight / 4, TFT_BLACK);
-    lcd_.fillRect(left + eyeWidth - shear, top + (eyeHeight * 3 / 4), shear, eyeHeight / 4, TFT_BLACK);
+    lcd_.fillRect(left, top, shear, bandH, TFT_BLACK);
+    lcd_.fillRect(left + eyeWidth - shear, top + eyeHeight - bandH, shear, bandH, TFT_BLACK);
   } else if (shear < 0) {
     const int s = -shear;
-    lcd_.fillRect(left + eyeWidth - s, top, s, eyeHeight / 4, TFT_BLACK);
-    lcd_.fillRect(left, top + (eyeHeight * 3 / 4), s, eyeHeight / 4, TFT_BLACK);
+    lcd_.fillRect(left + eyeWidth - s, top, s, bandH, TFT_BLACK);
+    lcd_.fillRect(left, top + eyeHeight - bandH, s, bandH, TFT_BLACK);
   }
 }
 void LovyanSt7789Driver::drawPupil(int x, int y, int radius) {
@@ -158,6 +167,7 @@ void LovyanSt7789Driver::drawText(int x, int y, const char* text) {
   lcd_.setCursor(x, y);
   lcd_.println(text);
 }
+
 
 
 

@@ -10,6 +10,8 @@
 #include "../../models/behavior_context.h"
 #include "../../models/intent_types.h"
 #include "../../models/persona_profile.h"
+#include "../../models/routine_state.h"
+#include "../../models/mood_profile.h"
 
 class BehaviorService : public IEventListener {
 public:
@@ -86,7 +88,10 @@ private:
   AttentionFocus preferredFocus_ = AttentionFocus::Idle;
   PersonaTone personaTone_ = PersonaTone::Warm;
   float moodValence_ = 0.0f;
+  MoodProfile moodProfile_ = MoodProfile::Calm;
   float affinityBond_ = 0.25f;
+  RoutineState routineState_ = RoutineState::Idle;
   uint8_t activePriority_ = 0;
   unsigned long activeUntilMs_ = 0;
 };
+

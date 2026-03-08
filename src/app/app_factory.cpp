@@ -1,6 +1,10 @@
 #include "app_factory.h"
 #include <Arduino.h>
 
+#ifndef NCOS_SIM_MODE
+#define NCOS_SIM_MODE 0
+#endif
+
 #include "../ai/cloud/cloud_router.h"
 #include "../ai/dialogue/dialogue_engine.h"
 #include "../ai/intent/intent_engine.h"
@@ -34,17 +38,18 @@
 #include "../services/gesture/gesture_service.h"
 #include "../services/health_monitor/health_monitor_service.h"
 #include "../services/interaction/interaction_service.h"
+#include "../services/memory/memory_service.h"
 #include "../services/mood/mood_service.h"
 #include "../services/motion/motion_service.h"
 #include "../services/motion_sync/motion_sync_service.h"
 #include "../services/ota/ota_service.h"
 #include "../services/persona/persona_service.h"
 #include "../services/power/power_service.h"
-#include "../services/preference_memory/preference_memory_service.h"
 #include "../services/routine/routine_service.h"
 #include "../services/safe_mode/safe_mode_service.h"
 #include "../services/self_test/self_test_service.h"
 #include "../services/sensor/sensor_service.h"
+#include "../services/sim_test/sim_test_input_service.h"
 #include "../services/vision/vision_service.h"
 #include "../services/voice/voice_service.h"
 
@@ -94,7 +99,7 @@ HealthMonitorService g_healthMonitorService(g_eventBus, g_diagnostics);
 
 AffinityService g_affinityService(g_eventBus);
 EngagementService g_engagementService(g_eventBus);
-PreferenceMemoryService g_preferenceMemoryService(g_eventBus);
+MemoryService g_memoryService(g_eventBus, g_storageManager);
 MoodService g_moodService(g_eventBus, g_emotionService);
 PersonaService g_personaService(g_eventBus);
 
@@ -113,6 +118,10 @@ CloudRouter g_cloudRouter(g_eventBus);
 
 BehaviorService g_behaviorService(g_eventBus, g_emotionService, g_faceService, g_motionService, g_diagnostics);
 InteractionService g_interactionService(g_eventBus, g_diagnostics);
+
+#if NCOS_SIM_MODE
+SimTestInputService g_simTestInputService(g_eventBus, g_faceService);
+#endif
 
 SystemManager g_systemManager(
     g_eventBus,
@@ -141,7 +150,7 @@ void AppFactory::init() {
 
   g_affinityService.init();
   g_engagementService.init();
-  g_preferenceMemoryService.init();
+  g_memoryService.init();
   g_moodService.init();
   g_personaService.init();
 
@@ -151,6 +160,10 @@ void AppFactory::init() {
 
   g_cloudRouter.init();
   g_systemManager.init();
+
+#if NCOS_SIM_MODE
+  g_simTestInputService.init();
+#endif
 }
 
 void AppFactory::update() {
@@ -172,7 +185,7 @@ void AppFactory::update() {
 
   g_affinityService.update(now);
   g_engagementService.update(now);
-  g_preferenceMemoryService.update(now);
+  g_memoryService.update(now);
   g_moodService.update(now);
   g_personaService.update(now);
 
@@ -181,4 +194,10 @@ void AppFactory::update() {
   g_otaService.update(now);
 
   g_cloudRouter.update(now);
+
+#if NCOS_SIM_MODE
+  g_simTestInputService.update(now);
+#endif
 }
+
+

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../models/long_term_memory.h"
 #include <stdint.h>
 
 class StorageManager {
@@ -10,6 +11,9 @@ public:
   bool stageOtaPackage(uint32_t targetVersion, uint32_t checksum);
   bool getStagedOtaPackage(uint32_t& targetVersion, uint32_t& checksum) const;
   void clearStagedOtaPackage();
+
+  bool loadLongTermMemory(LongTermMemory& outMemory) const;
+  bool saveLongTermMemory(const LongTermMemory& memory);
 
 private:
   bool ready_ = false;

@@ -40,27 +40,54 @@ EmotionPreset makePreset(float tilt, float squash, float stretch, float up, floa
 EmotionPreset presetFor(ExpressionType e, bool left) {
   switch (e) {
     case ExpressionType::Neutral:
-      return makePreset(0.0f, 1.00f, 1.00f, 0.18f, 0.10f);
+      return makePreset(0.0f, 0.98f, 1.04f, 0.14f, 0.06f);
     case ExpressionType::Curiosity:
-      return makePreset(left ? -6.0f : 6.0f, 0.96f, 1.06f, 0.12f, 0.04f);
+      return makePreset(left ? -16.0f : 16.0f, 1.00f, 1.16f, 0.08f, 0.02f);
     case ExpressionType::FaceRecognized:
-      return makePreset(left ? -4.0f : 4.0f, 1.02f, 1.03f, 0.14f, 0.08f);
+      return makePreset(left ? -10.0f : 10.0f, 1.06f, 1.10f, 0.10f, 0.04f);
     case ExpressionType::BatteryAlert:
-      return makePreset(0.0f, 0.88f, 0.92f, 0.32f, 0.22f);
+      return makePreset(0.0f, 0.72f, 0.96f, 0.50f, 0.34f);
     case ExpressionType::Angry:
-      return makePreset(left ? 12.0f : -12.0f, 0.82f, 1.10f, 0.38f, 0.10f);
+      return makePreset(left ? 20.0f : -20.0f, 0.84f, 1.20f, 0.48f, 0.02f);
     case ExpressionType::Sad:
-      return makePreset(left ? -10.0f : 10.0f, 0.90f, 0.96f, 0.30f, 0.16f);
+      return makePreset(left ? -18.0f : 18.0f, 0.86f, 0.94f, 0.40f, 0.24f);
     case ExpressionType::Blink:
       return makePreset(0.0f, 0.10f, 1.02f, 0.48f, 0.48f);
     default:
-      return makePreset(0.0f, 1.00f, 1.00f, 0.18f, 0.10f);
+      return makePreset(0.0f, 0.98f, 1.04f, 0.14f, 0.06f);
   }
 }
+
+#if NCOS_SIM_MODE
+EmotionPreset boostPresetForSim(const EmotionPreset& inPreset) {
+  EmotionPreset p = inPreset;
+  p.tiltDeg *= 1.6f;
+  p.squashY = MathUtils::clamp(1.0f + ((p.squashY - 1.0f) * 1.8f), 0.70f, 1.25f);
+  p.stretchX = MathUtils::clamp(1.0f + ((p.stretchX - 1.0f) * 1.8f), 0.78f, 1.28f);
+  p.upperLid = MathUtils::clamp(0.18f + ((p.upperLid - 0.18f) * 1.9f), 0.02f, 0.55f);
+  p.lowerLid = MathUtils::clamp(0.10f + ((p.lowerLid - 0.10f) * 1.9f), 0.02f, 0.55f);
+  return p;
+}
+#endif
 
 float lerpF(float a, float b, float t) {
   return a + ((b - a) * t);
 }
+
+#if NCOS_SIM_MODE
+const char* expressionName(ExpressionType e) {
+  switch (e) {
+    case ExpressionType::Neutral: return "neutral";
+    case ExpressionType::Curiosity: return "curious";
+    case ExpressionType::FaceRecognized: return "happy";
+    case ExpressionType::BatteryAlert: return "alert";
+    case ExpressionType::Angry: return "angry";
+    case ExpressionType::Sad: return "sad";
+    case ExpressionType::Blink: return "blink";
+    default: return "unknown";
+  }
+}
+#endif
 }
 
 FaceService::FaceService(IDisplayPort& displayPort, const IEmotionProvider& emotionProvider)
@@ -96,9 +123,20 @@ void FaceService::init() {
 }
 
 void FaceService::requestExpression(ExpressionType expression, EyeAnimPriority priority, unsigned long holdMs) {
+  const unsigned long now = millis();
+  if (expressionHoldUntilMs_ > now) {
+    const int activePriority = static_cast<int>(currentPriority_);
+    const int pendingPriority = static_cast<int>(requestedPriority_);
+    const int incomingPriority = static_cast<int>(priority);
+    const int strongestActive = activePriority > pendingPriority ? activePriority : pendingPriority;
+    if (incomingPriority < strongestActive) {
+      return;
+    }
+  }
+
   requestedExpression_ = expression;
   requestedPriority_ = priority;
-  expressionHoldUntilMs_ = holdMs > 0 ? (millis() + holdMs) : 0;
+  expressionHoldUntilMs_ = holdMs > 0 ? (now + holdMs) : 0;
 }
 
 void FaceService::update(unsigned long nowMs) {
@@ -142,12 +180,21 @@ void FaceService::stepStateMachine(unsigned long nowMs) {
   if (expressionHoldUntilMs_ > 0 && nowMs > expressionHoldUntilMs_) {
     requestedExpression_ = ExpressionType::Neutral;
     requestedPriority_ = EyeAnimPriority::Idle;
+    currentExpression_ = ExpressionType::Neutral;
+    currentPriority_ = EyeAnimPriority::Idle;
     expressionHoldUntilMs_ = 0;
   }
 
   if (!blinking_ && static_cast<int>(requestedPriority_) >= static_cast<int>(currentPriority_)) {
+    const ExpressionType prevExpression = currentExpression_;
     currentExpression_ = requestedExpression_;
     currentPriority_ = requestedPriority_;
+#if NCOS_SIM_MODE
+    if (currentExpression_ != prevExpression) {
+      Serial.print("[FACE_STATE] expr=");
+      Serial.println(expressionName(currentExpression_));
+    }
+#endif
   }
 }
 
@@ -160,8 +207,15 @@ void FaceService::scheduleNextBlink(unsigned long nowMs) {
 }
 
 void FaceService::applyStateToTargets() {
-  const EmotionPreset l = presetFor(currentExpression_, true);
-  const EmotionPreset r = presetFor(currentExpression_, false);
+  EmotionPreset l = presetFor(currentExpression_, true);
+  EmotionPreset r = presetFor(currentExpression_, false);
+
+#if NCOS_SIM_MODE
+  if (currentExpression_ != ExpressionType::Neutral) {
+    l = boostPresetForSim(l);
+    r = boostPresetForSim(r);
+  }
+#endif
 
   targetLeftEye_.expression = currentExpression_;
   targetRightEye_.expression = currentExpression_;
@@ -252,7 +306,11 @@ void FaceService::smoothEyes(unsigned long nowMs) {
   const float dt = static_cast<float>(dtMs) / 1000.0f;
   // 14 Hz critically damped-ish response.
   float alpha = 1.0f - expf(-14.0f * dt);
+#if NCOS_SIM_MODE
+  alpha = MathUtils::clamp(alpha, 0.06f, 0.32f);
+#else
   alpha = MathUtils::clamp(alpha, 0.08f, 0.45f);
+#endif
 
   leftEye_.openness = lerpF(leftEye_.openness, targetLeftEye_.openness, alpha);
   rightEye_.openness = lerpF(rightEye_.openness, targetRightEye_.openness, alpha);
@@ -301,7 +359,7 @@ void FaceService::recordPerf(unsigned long nowMs, bool rendered, unsigned long r
     return;
   }
 
-#if NCOS_SIM_MODE
+#if 0
   Serial.print("[FACE_PERF] updates=");
   Serial.print(perf_.updates);
   Serial.print(" rendered=");
@@ -325,4 +383,10 @@ void FaceService::recordPerf(unsigned long nowMs, bool rendered, unsigned long r
   perf_.maxRenderUs = 0;
   perf_.avgRenderUsAccum = 0;
 }
+
+
+
+
+
+
 

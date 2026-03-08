@@ -14,6 +14,8 @@ void AttentionService::init() {
   focus_ = AttentionFocus::Idle;
   focusUntilMs_ = nowMs + HardwareConfig::Polish::ATTENTION_IDLE_RETURN_MS;
   lastInteractionMs_ = nowMs;
+  lastInternalPulseMs_ = nowMs;
+  lastScanAttemptMs_ = nowMs;
   publishFocus(focus_, nowMs);
 }
 
@@ -23,8 +25,21 @@ void AttentionService::update(unsigned long nowMs) {
     return;
   }
 
+  const unsigned long silenceMs = nowMs - lastInteractionMs_;
+  if (silenceMs < HardwareConfig::Polish::ATTENTION_IDLE_RETURN_MS) {
+    return;
+  }
+
+  if (nowMs - lastScanAttemptMs_ >= HardwareConfig::Polish::ATTENTION_SCAN_INTERVAL_MS) {
+    lastScanAttemptMs_ = nowMs;
+    lastInternalPulseMs_ = nowMs;
+    setFocus(AttentionFocus::Internal, nowMs, HardwareConfig::Polish::ATTENTION_INTERNAL_PULSE_MS);
+    return;
+  }
+
   if (focus_ == AttentionFocus::Idle &&
-      (nowMs - lastInteractionMs_ > HardwareConfig::Polish::ATTENTION_IDLE_RETURN_MS)) {
+      nowMs - lastInternalPulseMs_ >= HardwareConfig::Polish::ATTENTION_INTERNAL_PULSE_MS) {
+    lastInternalPulseMs_ = nowMs;
     setFocus(AttentionFocus::Internal, nowMs, HardwareConfig::Polish::ATTENTION_HOLD_MS);
   }
 }
@@ -46,6 +61,7 @@ void AttentionService::onEvent(const Event& event) {
 
     case EventType::EVT_VOICE_START:
     case EventType::EVT_VOICE_ACTIVITY:
+    case EventType::EVT_INTENT_DETECTED:
       lastInteractionMs_ = nowMs;
       setFocus(AttentionFocus::Voice, nowMs, HardwareConfig::Polish::ATTENTION_HOLD_MS);
       break;

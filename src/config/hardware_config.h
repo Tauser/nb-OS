@@ -292,6 +292,7 @@ namespace Behavior {
   constexpr float EMOTION_HIGH_AROUSAL = 0.72f;
 
   constexpr unsigned long LONG_IDLE_MS = 7000;
+  constexpr unsigned long AUTONOMY_BORED_IDLE_MS = 20000;
   constexpr unsigned long AUTONOMY_MIN_IDLE_MS = 2500;
   constexpr unsigned long AUTONOMY_ACTION_COOLDOWN_MS = 2400;
   constexpr unsigned int AUTONOMY_IDLE_TICKS_FOR_SCAN = 2;
@@ -304,6 +305,8 @@ namespace Behavior {
 namespace Polish {
   constexpr unsigned long ATTENTION_HOLD_MS = 1400;
   constexpr unsigned long ATTENTION_IDLE_RETURN_MS = 3200;
+  constexpr unsigned long ATTENTION_INTERNAL_PULSE_MS = 900;
+  constexpr unsigned long ATTENTION_SCAN_INTERVAL_MS = 5200;
   constexpr unsigned long GAZE_UPDATE_INTERVAL_MS = 550;
   constexpr unsigned long GAZE_COMMAND_COOLDOWN_MS = 700;
 
@@ -311,6 +314,13 @@ namespace Polish {
   constexpr unsigned long MOTION_SYNC_COOLDOWN_MS = 450;
   constexpr unsigned long ROUTINE_UPDATE_INTERVAL_MS = 1000;
   constexpr unsigned long ROUTINE_IDLE_TRIGGER_MS = 6000;
+  constexpr unsigned long IDLE_CALM_MS = 4500;
+  constexpr unsigned long IDLE_CURIOUS_MS = 9000;
+  constexpr unsigned long IDLE_SLEEPY_MS = 16000;
+  constexpr unsigned long IDLE_BORED_MS = 24000;
+  constexpr unsigned long IDLE_AUTONOMY_STEP_MS = 3000;
+  constexpr unsigned long IDLE_ATTENTION_RECOVERY_AFTER_MS = 10000;
+  constexpr unsigned long IDLE_ATTENTION_RECOVERY_INTERVAL_MS = 7000;
 }
 namespace Companion {
   constexpr unsigned long MOOD_UPDATE_INTERVAL_MS = 1200;
@@ -322,10 +332,18 @@ namespace Companion {
   constexpr float MOOD_DECAY_PER_S = 0.05f;
   constexpr float ENGAGEMENT_DECAY_PER_S = 0.10f;
   constexpr float AFFINITY_DECAY_PER_S = 0.02f;
+  constexpr float MOOD_IDLE_NEG_PER_S = 0.028f;
+  constexpr float MOOD_SILENCE_STABILITY_GAIN_PER_S = 0.04f;
+  constexpr unsigned long MOOD_LONG_IDLE_MS = 10000;
 
   constexpr float MOOD_PUBLISH_THRESHOLD = 0.04f;
   constexpr float ENGAGEMENT_PUBLISH_THRESHOLD = 0.05f;
   constexpr float AFFINITY_PUBLISH_THRESHOLD = 0.03f;
+}
+namespace Memory {
+  constexpr unsigned long UPDATE_INTERVAL_MS = 1000;
+  constexpr unsigned long PERSIST_INTERVAL_MS = 7000;
+  constexpr unsigned long SUMMARY_INTERVAL_MS = 3000;
 }
 namespace Ota {
   constexpr unsigned long CHECK_INTERVAL_MS = 20000;
@@ -392,14 +410,14 @@ namespace Power {
 namespace System {
 #if NCOS_SIM_MODE && NCOS_SIM_ULTRA
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 8000;
-  constexpr unsigned long FACE_FRAME_INTERVAL_MS = 40; // 25 FPS
-  constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 120;
-  constexpr unsigned long MOTION_UPDATE_INTERVAL_MS = 40;
+  constexpr unsigned long FACE_FRAME_INTERVAL_MS = 50; // 20 FPS (smoother under sim load)
+  constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 140;
+  constexpr unsigned long MOTION_UPDATE_INTERVAL_MS = 90;
 #elif NCOS_SIM_MODE
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000;
-  constexpr unsigned long FACE_FRAME_INTERVAL_MS = 66;  // 15 FPS
-  constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 100;
-  constexpr unsigned long MOTION_UPDATE_INTERVAL_MS = 66;
+  constexpr unsigned long FACE_FRAME_INTERVAL_MS = 50;  // 20 FPS (smoother sim pacing)
+  constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 140;
+  constexpr unsigned long MOTION_UPDATE_INTERVAL_MS = 80;
 #else
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 1000;
   constexpr unsigned long FACE_FRAME_INTERVAL_MS = 33;
@@ -409,6 +427,11 @@ namespace System {
 }
 
 } // namespace HardwareConfig
+
+
+
+
+
 
 
 

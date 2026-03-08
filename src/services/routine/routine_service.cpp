@@ -5,12 +5,36 @@
 #include "../../models/power_state.h"
 #include <Arduino.h>
 
+#ifndef NCOS_SIM_MODE
+#define NCOS_SIM_MODE 0
+#endif
+
+namespace {
+const char* routineStateName(RoutineState state) {
+  switch (state) {
+    case RoutineState::Idle: return "idle";
+    case RoutineState::Attentive: return "attentive";
+    case RoutineState::Calm: return "calm";
+    case RoutineState::Curious: return "curious";
+    case RoutineState::Sleepy: return "sleepy";
+    case RoutineState::Bored: return "bored";
+    case RoutineState::Resume: return "resume";
+    case RoutineState::Charging: return "charging";
+    case RoutineState::Listening: return "listening";
+    case RoutineState::Rest: return "rest";
+    default: return "none";
+  }
+}
+}
+
 RoutineService::RoutineService(EventBus& eventBus, IFaceController& faceController, IMotion& motion)
     : eventBus_(eventBus), faceController_(faceController), motion_(motion) {}
 
 void RoutineService::init() {
   eventBus_.subscribe(EventType::EVT_IDLE, this);
   eventBus_.subscribe(EventType::EVT_VOICE_START, this);
+  eventBus_.subscribe(EventType::EVT_VOICE_ACTIVITY, this);
+  eventBus_.subscribe(EventType::EVT_INTENT_DETECTED, this);
   eventBus_.subscribe(EventType::EVT_POWER_MODE_CHANGED, this);
   eventBus_.subscribe(EventType::EVT_CHARGING_STATE_CHANGED, this);
   eventBus_.subscribe(EventType::EVT_TOUCH, this);
@@ -18,6 +42,9 @@ void RoutineService::init() {
   const unsigned long nowMs = millis();
   lastUpdateMs_ = nowMs;
   lastInteractionMs_ = nowMs;
+  lastAutonomyStepMs_ = nowMs;
+  lastAttentionRecoveryMs_ = nowMs;
+  idleStage_ = IdleAutonomyStage::Attentive;
   setState(RoutineState::Idle, nowMs);
 }
 
@@ -28,11 +55,25 @@ void RoutineService::update(unsigned long nowMs) {
 
   lastUpdateMs_ = nowMs;
 
-  if (state_ == RoutineState::Idle &&
-      (nowMs - lastInteractionMs_ > HardwareConfig::Polish::ROUTINE_IDLE_TRIGGER_MS)) {
-    faceController_.requestExpression(ExpressionType::Neutral, EyeAnimPriority::Idle, 300);
-    motion_.idleSway();
+  if (state_ == RoutineState::Charging) {
+    faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Critical, 1800);
+    motion_.center();
+    return;
   }
+
+  if (state_ == RoutineState::Rest) {
+    faceController_.requestExpression(ExpressionType::BatteryAlert, EyeAnimPriority::Critical, 1800);
+    motion_.center();
+    return;
+  }
+
+  if (state_ == RoutineState::Listening) {
+    faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Social, 1400);
+    motion_.softListen();
+    return;
+  }
+
+  updateIdleAutonomy(nowMs);
 }
 
 void RoutineService::onEvent(const Event& event) {
@@ -40,16 +81,18 @@ void RoutineService::onEvent(const Event& event) {
 
   switch (event.type) {
     case EventType::EVT_TOUCH:
-      lastInteractionMs_ = nowMs;
+      markInteraction(nowMs);
       setState(RoutineState::Resume, nowMs);
-      faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Social, 450);
+      faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Social, 500);
       motion_.idleSway();
       break;
 
     case EventType::EVT_VOICE_START:
-      lastInteractionMs_ = nowMs;
+    case EventType::EVT_VOICE_ACTIVITY:
+    case EventType::EVT_INTENT_DETECTED:
+      markInteraction(nowMs);
       setState(RoutineState::Listening, nowMs);
-      faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Social, 550);
+      faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Social, 650);
       motion_.softListen();
       break;
 
@@ -57,8 +100,10 @@ void RoutineService::onEvent(const Event& event) {
       const PowerMode mode = static_cast<PowerMode>(event.value);
       if (mode == PowerMode::Sleep) {
         setState(RoutineState::Rest, nowMs);
-        faceController_.requestExpression(ExpressionType::Sad, EyeAnimPriority::Emotion, 700);
+        faceController_.requestExpression(ExpressionType::BatteryAlert, EyeAnimPriority::Critical, 1400);
         motion_.center();
+      } else if (state_ == RoutineState::Rest) {
+        setState(RoutineState::Resume, nowMs);
       }
       break;
     }
@@ -66,7 +111,7 @@ void RoutineService::onEvent(const Event& event) {
     case EventType::EVT_CHARGING_STATE_CHANGED:
       if (event.value != 0) {
         setState(RoutineState::Charging, nowMs);
-        faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Emotion, 600);
+        faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Critical, 1400);
         motion_.center();
       } else {
         setState(RoutineState::Resume, nowMs);
@@ -90,6 +135,10 @@ void RoutineService::setState(RoutineState state, unsigned long nowMs) {
   }
 
   state_ = state;
+#if NCOS_SIM_MODE
+  Serial.print("[ROUTINE_STATE] state=");
+  Serial.println(routineStateName(state_));
+#endif
   publishRoutineState(nowMs);
 }
 
@@ -101,3 +150,108 @@ void RoutineService::publishRoutineState(unsigned long nowMs) {
   event.timestamp = nowMs;
   eventBus_.publish(event);
 }
+
+void RoutineService::updateIdleAutonomy(unsigned long nowMs) {
+  const unsigned long idleForMs = nowMs - lastInteractionMs_;
+  const IdleAutonomyStage targetStage = stageForIdle(idleForMs);
+  const bool stageChanged = (targetStage != idleStage_);
+
+  if (stageChanged) {
+    idleStage_ = targetStage;
+  }
+
+  if (idleForMs >= HardwareConfig::Polish::IDLE_ATTENTION_RECOVERY_AFTER_MS &&
+      nowMs - lastAttentionRecoveryMs_ >= HardwareConfig::Polish::IDLE_ATTENTION_RECOVERY_INTERVAL_MS) {
+    lastAttentionRecoveryMs_ = nowMs;
+    const ExpressionType recoveryExpr = (idleStage_ == IdleAutonomyStage::Sleepy || idleStage_ == IdleAutonomyStage::Bored) ? ExpressionType::Curiosity : ExpressionType::FaceRecognized;
+    faceController_.requestExpression(recoveryExpr, EyeAnimPriority::Social, 520);
+    if (nextLeft_) {
+      motion_.yawLeft();
+    } else {
+      motion_.yawRight();
+    }
+    nextLeft_ = !nextLeft_;
+  }
+
+  if (!stageChanged && nowMs - lastAutonomyStepMs_ < HardwareConfig::Polish::IDLE_AUTONOMY_STEP_MS) {
+    return;
+  }
+
+  lastAutonomyStepMs_ = nowMs;
+  applyStage(idleStage_, nowMs, stageChanged);
+}
+
+RoutineService::IdleAutonomyStage RoutineService::stageForIdle(unsigned long idleForMs) const {
+  if (idleForMs >= HardwareConfig::Polish::IDLE_BORED_MS) {
+    return IdleAutonomyStage::Bored;
+  }
+  if (idleForMs >= HardwareConfig::Polish::IDLE_SLEEPY_MS) {
+    return IdleAutonomyStage::Sleepy;
+  }
+  if (idleForMs >= HardwareConfig::Polish::IDLE_CURIOUS_MS) {
+    return IdleAutonomyStage::Curious;
+  }
+  if (idleForMs >= HardwareConfig::Polish::IDLE_CALM_MS) {
+    return IdleAutonomyStage::Calm;
+  }
+  return IdleAutonomyStage::Attentive;
+}
+
+void RoutineService::applyStage(IdleAutonomyStage stage, unsigned long nowMs, bool stageChanged) {
+  (void)nowMs;
+
+  switch (stage) {
+    case IdleAutonomyStage::Attentive:
+      setState(RoutineState::Attentive, nowMs);
+      faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Idle, stageChanged ? 560 : 360);
+      motion_.idleSway();
+      break;
+
+    case IdleAutonomyStage::Calm:
+      setState(RoutineState::Calm, nowMs);
+      faceController_.requestExpression(ExpressionType::Neutral, EyeAnimPriority::Idle, stageChanged ? 680 : 460);
+      motion_.idleSway();
+      break;
+
+    case IdleAutonomyStage::Curious:
+      setState(RoutineState::Curious, nowMs);
+      faceController_.requestExpression(ExpressionType::Curiosity, EyeAnimPriority::Idle, stageChanged ? 980 : 680);
+      if (nextLeft_) {
+        motion_.curiousLeft();
+      } else {
+        motion_.curiousRight();
+      }
+      nextLeft_ = !nextLeft_;
+      break;
+
+    case IdleAutonomyStage::Sleepy:
+      setState(RoutineState::Sleepy, nowMs);
+      faceController_.requestExpression(ExpressionType::BatteryAlert, EyeAnimPriority::Idle, stageChanged ? 1280 : 920);
+      motion_.softListen();
+      break;
+
+    case IdleAutonomyStage::Bored:
+      setState(RoutineState::Bored, nowMs);
+      faceController_.requestExpression(ExpressionType::Sad, EyeAnimPriority::Idle, stageChanged ? 1450 : 1080);
+      if (nextLeft_) {
+        motion_.yawLeft();
+      } else {
+        motion_.yawRight();
+      }
+      nextLeft_ = !nextLeft_;
+      break;
+
+    default:
+      break;
+  }
+}
+
+void RoutineService::markInteraction(unsigned long nowMs) {
+  lastInteractionMs_ = nowMs;
+  lastAutonomyStepMs_ = nowMs;
+  lastAttentionRecoveryMs_ = nowMs;
+  idleStage_ = IdleAutonomyStage::Attentive;
+}
+
+
+
