@@ -35,6 +35,8 @@ enum class EventType {
   EVT_PREFERENCE_UPDATED,
   EVT_PERSONA_UPDATED,
   EVT_AFFINITY_CHANGED,
+  EVT_HEALTH_STATUS,
+  EVT_HEALTH_ANOMALY,
   EVT_MOTION_POSE_APPLIED,
   EVT_EMOTION_CHANGED,
   EVT_BEHAVIOR_ACTION
@@ -64,5 +66,6 @@ enum class EventSource {
   EngagementService,
   PreferenceMemoryService,
   PersonaService,
-  AffinityService
+  AffinityService,
+  HealthMonitorService
 };

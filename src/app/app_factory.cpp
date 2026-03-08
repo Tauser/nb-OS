@@ -32,6 +32,7 @@
 #include "../services/face/face_service.h"
 #include "../services/gaze/gaze_service.h"
 #include "../services/gesture/gesture_service.h"
+#include "../services/health_monitor/health_monitor_service.h"
 #include "../services/interaction/interaction_service.h"
 #include "../services/mood/mood_service.h"
 #include "../services/motion/motion_service.h"
@@ -86,6 +87,7 @@ GazeService g_gazeService(g_eventBus, g_faceService, g_motionService);
 GestureService g_gestureService(g_eventBus, g_faceService, g_motionService);
 MotionSyncService g_motionSyncService(g_eventBus, g_faceService, g_motionService);
 RoutineService g_routineService(g_eventBus, g_faceService, g_motionService);
+HealthMonitorService g_healthMonitorService(g_eventBus, g_diagnostics);
 
 AffinityService g_affinityService(g_eventBus);
 EngagementService g_engagementService(g_eventBus);
@@ -121,6 +123,7 @@ void AppFactory::init() {
   g_gestureService.init();
   g_motionSyncService.init();
   g_routineService.init();
+  g_healthMonitorService.init();
 
   g_affinityService.init();
   g_engagementService.init();
@@ -147,6 +150,7 @@ void AppFactory::update() {
   g_gestureService.update(now);
   g_motionSyncService.update(now);
   g_routineService.update(now);
+  g_healthMonitorService.update(now);
 
   g_affinityService.update(now);
   g_engagementService.update(now);

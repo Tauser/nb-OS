@@ -327,6 +327,16 @@ namespace Companion {
   constexpr float ENGAGEMENT_PUBLISH_THRESHOLD = 0.05f;
   constexpr float AFFINITY_PUBLISH_THRESHOLD = 0.03f;
 }
+namespace Health {
+  constexpr unsigned long METRIC_WINDOW_MS = 1000;
+  constexpr unsigned long STATUS_PUBLISH_INTERVAL_MS = 2000;
+  constexpr unsigned long ANOMALY_PUBLISH_COOLDOWN_MS = 3000;
+
+  constexpr unsigned long HEARTBEAT_TIMEOUT_MS = 8000;
+  constexpr unsigned int MIN_RENDER_FPS = 6;
+  constexpr unsigned int MAX_EVENT_RATE_PER_S = 250;
+  constexpr unsigned int MIN_FREE_HEAP_BYTES = 20000;
+}
 namespace Power {
 #if NCOS_SIM_MODE
   constexpr unsigned long SAMPLE_INTERVAL_MS = 1000;
@@ -383,6 +393,7 @@ namespace System {
 }
 
 } // namespace HardwareConfig
+
 
 
 

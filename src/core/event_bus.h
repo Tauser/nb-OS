@@ -5,7 +5,7 @@
 
 class EventBus {
 public:
-  static constexpr int kMaxSubscribers = 32;
+  static constexpr int kMaxSubscribers = 96;
 
   EventBus();
 
@@ -24,4 +24,5 @@ private:
 
   SubscriberSlot subscribers_[kMaxSubscribers];
 };
+
 
