@@ -275,6 +275,48 @@ namespace EmotionOutput {
   constexpr unsigned long MOTION_INTERVAL_MIN_MS = 800;
   constexpr unsigned long MOTION_INTERVAL_MAX_MS = 3200;
 }
+namespace Homeostasis {
+  constexpr float ENERGY_BASELINE = 0.68f;
+  constexpr float STIMULATION_BASELINE = 0.34f;
+  constexpr float CURIOSITY_BASELINE = 0.42f;
+
+  constexpr float ENERGY_DECAY_PER_S = 0.08f;
+  constexpr float STIMULATION_DECAY_PER_S = 0.20f;
+  constexpr float CURIOSITY_DECAY_PER_S = 0.10f;
+
+  constexpr float TOUCH_ENERGY = 0.03f;
+  constexpr float TOUCH_STIMULATION = 0.10f;
+  constexpr float TOUCH_CURIOSITY = 0.05f;
+
+  constexpr float SHAKE_STIMULATION = 0.22f;
+  constexpr float SHAKE_ENERGY = -0.03f;
+
+  constexpr float TILT_CURIOSITY = 0.09f;
+  constexpr float TILT_STIMULATION = 0.04f;
+
+  constexpr float VOICE_STIMULATION = 0.14f;
+  constexpr float VOICE_CURIOSITY = 0.03f;
+
+  constexpr float FALL_STIMULATION = 0.24f;
+  constexpr float FALL_ENERGY = -0.10f;
+
+  constexpr float IDLE_STIMULATION = -0.04f;
+  constexpr float IDLE_CURIOSITY = -0.02f;
+
+  constexpr float BIAS_LEARN_PER_EVENT = 0.022f;
+  constexpr float BIAS_DECAY_PER_S = 0.010f;
+
+  constexpr float HYSTERESIS_MARGIN = 0.06f;
+  constexpr unsigned long HYSTERESIS_HOLD_MS = 2200;
+
+  constexpr unsigned long LONG_IDLE_MS = 9000;
+  constexpr unsigned long BORED_IDLE_MS = 22000;
+
+  constexpr float ROUTINE_BORED_VALENCE_MAX = -0.18f;
+  constexpr float ROUTINE_SLEEPY_ENERGY_MAX = 0.30f;
+  constexpr float ROUTINE_CURIOUS_MIN = 0.62f;
+  constexpr float ROUTINE_CALM_AROUSAL_MAX = 0.42f;
+}
 namespace Behavior {
   constexpr unsigned long ACTION_MIN_INTERVAL_MS = 220;
   constexpr unsigned long IDLE_EVAL_INTERVAL_MS = 900;
@@ -427,6 +469,8 @@ namespace System {
 }
 
 } // namespace HardwareConfig
+
+
 
 
 

@@ -13,6 +13,19 @@ float approach(float current, float target, float alpha) {
 float absfLocal(float value) {
   return fabsf(value);
 }
+
+float scoreForMode(const HomeostasisScores& s, HomeostasisMode mode) {
+  switch (mode) {
+    case HomeostasisMode::Calm: return s.calm;
+    case HomeostasisMode::Animated: return s.animated;
+    case HomeostasisMode::Curious: return s.curious;
+    case HomeostasisMode::Social: return s.social;
+    case HomeostasisMode::Sensitive: return s.sensitive;
+    case HomeostasisMode::Sleepy: return s.sleepy;
+    case HomeostasisMode::Bored: return s.bored;
+    default: return 0.0f;
+  }
+}
 }
 
 EmotionService::EmotionService(EventBus& eventBus)
@@ -21,7 +34,10 @@ EmotionService::EmotionService(EventBus& eventBus)
 void EmotionService::init() {
   reset();
   eventBus_.subscribe(EventType::Any, this);
-  lastUpdateMs_ = millis();
+  const unsigned long nowMs = millis();
+  lastUpdateMs_ = nowMs;
+  lastInteractionMs_ = nowMs;
+  modeSinceMs_ = nowMs;
 }
 
 void EmotionService::update(unsigned long nowMs) {
@@ -33,7 +49,11 @@ void EmotionService::update(unsigned long nowMs) {
   const float dtS = static_cast<float>(nowMs - lastUpdateMs_) / 1000.0f;
   lastUpdateMs_ = nowMs;
 
-  applyDecay(dtS);
+  homeo_.idleMs = nowMs - lastInteractionMs_;
+  applyHomeostaticDecay(dtS);
+  applyAdaptiveDecay(dtS);
+  computeEmotionalScores(nowMs);
+  synthesizeEmotionFromHomeostasis();
 
   if (shouldPublish(nowMs)) {
     publishEmotionChanged(nowMs);
@@ -45,10 +65,23 @@ void EmotionService::onEvent(const Event& event) {
     return;
   }
 
-  lastObservedEventType_ = event.type;
-  applyEventRule(event);
-
   const unsigned long nowMs = event.timestamp > 0 ? event.timestamp : millis();
+  lastObservedEventType_ = event.type;
+
+  if (event.type == EventType::EVT_TOUCH ||
+      event.type == EventType::EVT_VOICE_START ||
+      event.type == EventType::EVT_VOICE_ACTIVITY ||
+      event.type == EventType::EVT_TILT ||
+      event.type == EventType::EVT_SHAKE ||
+      event.type == EventType::EVT_INTENT_DETECTED) {
+    lastInteractionMs_ = nowMs;
+  }
+
+  applyEventRule(event);
+  homeo_.idleMs = nowMs - lastInteractionMs_;
+  computeEmotionalScores(nowMs);
+  synthesizeEmotionFromHomeostasis();
+
   if (shouldPublish(nowMs)) {
     publishEmotionChanged(nowMs);
   }
@@ -58,10 +91,20 @@ const EmotionState& EmotionService::getEmotionState() const {
   return state_;
 }
 
+const HomeostasisState& EmotionService::getHomeostasisState() const {
+  return homeo_;
+}
+
 void EmotionService::reset() {
   baseline_ = EmotionState::neutral();
   state_ = EmotionState::neutral();
   lastPublishedState_ = state_;
+
+  homeo_ = HomeostasisState{};
+  homeo_.mode = HomeostasisMode::Calm;
+  homeo_.clamp();
+  lastPublishedHomeo_ = homeo_;
+
   lastObservedEventType_ = EventType::None;
   changedSincePublish_ = false;
   lastPublishMs_ = millis();
@@ -70,104 +113,224 @@ void EmotionService::reset() {
 void EmotionService::applyEventRule(const Event& event) {
   switch (event.type) {
     case EventType::EVT_TOUCH:
-      applyDelta(HardwareConfig::Emotion::TOUCH_D_VALENCE,
-                 HardwareConfig::Emotion::TOUCH_D_AROUSAL,
-                 HardwareConfig::Emotion::TOUCH_D_CURIOSITY,
-                 HardwareConfig::Emotion::TOUCH_D_ATTENTION,
-                 HardwareConfig::Emotion::TOUCH_D_BOND,
-                 0.0f);
+      applyHomeoDelta(HardwareConfig::Homeostasis::TOUCH_ENERGY,
+                      HardwareConfig::Homeostasis::TOUCH_STIMULATION,
+                      HardwareConfig::Homeostasis::TOUCH_CURIOSITY);
+      homeo_.sociabilityBias += HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT;
+      homeo_.affinityBias += HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT;
+      homeo_.sensitivityBias -= (HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT * 0.35f);
       break;
 
     case EventType::EVT_SHAKE:
-      applyDelta(HardwareConfig::Emotion::SHAKE_D_VALENCE,
-                 HardwareConfig::Emotion::SHAKE_D_AROUSAL,
-                 0.0f,
-                 HardwareConfig::Emotion::SHAKE_D_ATTENTION,
-                 0.0f,
-                 0.0f);
+      applyHomeoDelta(HardwareConfig::Homeostasis::SHAKE_ENERGY,
+                      HardwareConfig::Homeostasis::SHAKE_STIMULATION,
+                      0.0f);
+      homeo_.sensitivityBias += (HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT * 1.1f);
+      homeo_.sociabilityBias -= (HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT * 0.45f);
       break;
 
     case EventType::EVT_TILT:
-      applyDelta(0.0f,
-                 0.0f,
-                 HardwareConfig::Emotion::TILT_D_CURIOSITY,
-                 HardwareConfig::Emotion::TILT_D_ATTENTION,
-                 0.0f,
-                 0.0f);
+      applyHomeoDelta(0.0f,
+                      HardwareConfig::Homeostasis::TILT_STIMULATION,
+                      HardwareConfig::Homeostasis::TILT_CURIOSITY);
+      homeo_.noveltyBias += (HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT * 0.9f);
       break;
 
     case EventType::EVT_FALL:
-      applyDelta(HardwareConfig::Emotion::FALL_D_VALENCE,
-                 HardwareConfig::Emotion::FALL_D_AROUSAL,
-                 0.0f,
-                 0.0f,
-                 0.0f,
-                 HardwareConfig::Emotion::FALL_D_ENERGY);
+      applyHomeoDelta(HardwareConfig::Homeostasis::FALL_ENERGY,
+                      HardwareConfig::Homeostasis::FALL_STIMULATION,
+                      0.0f);
+      homeo_.sensitivityBias += (HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT * 1.4f);
+      homeo_.affinityBias -= (HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT * 0.5f);
       break;
 
     case EventType::EVT_IDLE:
-      applyDelta(0.0f,
-                 HardwareConfig::Emotion::IDLE_D_AROUSAL,
-                 HardwareConfig::Emotion::IDLE_D_CURIOSITY,
-                 HardwareConfig::Emotion::IDLE_D_ATTENTION,
-                 0.0f,
-                 0.0f);
+      applyHomeoDelta(0.0f,
+                      HardwareConfig::Homeostasis::IDLE_STIMULATION,
+                      HardwareConfig::Homeostasis::IDLE_CURIOSITY);
       break;
 
+    case EventType::EVT_VOICE_START:
     case EventType::EVT_VOICE_ACTIVITY:
-      applyDelta(0.0f,
-                 HardwareConfig::Emotion::VOICE_D_AROUSAL,
-                 0.0f,
-                 HardwareConfig::Emotion::VOICE_D_ATTENTION,
-                 HardwareConfig::Emotion::VOICE_D_BOND,
-                 0.0f);
+      applyHomeoDelta(0.0f,
+                      HardwareConfig::Homeostasis::VOICE_STIMULATION,
+                      HardwareConfig::Homeostasis::VOICE_CURIOSITY);
+      homeo_.sociabilityBias += (HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT * 0.8f);
+      homeo_.affinityBias += (HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT * 0.55f);
+      break;
+
+    case EventType::EVT_INTENT_DETECTED:
+      applyHomeoDelta(0.01f,
+                      HardwareConfig::Homeostasis::VOICE_STIMULATION * 0.75f,
+                      HardwareConfig::Homeostasis::VOICE_CURIOSITY * 0.75f);
+      homeo_.noveltyBias += (HardwareConfig::Homeostasis::BIAS_LEARN_PER_EVENT * 0.5f);
       break;
 
     default:
       break;
   }
+
+  homeo_.clamp();
 }
 
-void EmotionService::applyDecay(float dtS) {
+void EmotionService::applyHomeostaticDecay(float dtS) {
   if (dtS <= 0.0f) {
     return;
   }
 
-  const float aValence = MathUtils::clamp(HardwareConfig::Emotion::DECAY_VALENCE_PER_S * dtS, 0.0f, 1.0f);
-  const float aArousal = MathUtils::clamp(HardwareConfig::Emotion::DECAY_AROUSAL_PER_S * dtS, 0.0f, 1.0f);
-  const float aCuriosity = MathUtils::clamp(HardwareConfig::Emotion::DECAY_CURIOSITY_PER_S * dtS, 0.0f, 1.0f);
-  const float aAttention = MathUtils::clamp(HardwareConfig::Emotion::DECAY_ATTENTION_PER_S * dtS, 0.0f, 1.0f);
-  const float aBond = MathUtils::clamp(HardwareConfig::Emotion::DECAY_BOND_PER_S * dtS, 0.0f, 1.0f);
-  const float aEnergy = MathUtils::clamp(HardwareConfig::Emotion::DECAY_ENERGY_PER_S * dtS, 0.0f, 1.0f);
+  const float aEnergy = MathUtils::clamp(HardwareConfig::Homeostasis::ENERGY_DECAY_PER_S * dtS, 0.0f, 1.0f);
+  const float aStim = MathUtils::clamp(HardwareConfig::Homeostasis::STIMULATION_DECAY_PER_S * dtS, 0.0f, 1.0f);
+  const float aCur = MathUtils::clamp(HardwareConfig::Homeostasis::CURIOSITY_DECAY_PER_S * dtS, 0.0f, 1.0f);
 
+  homeo_.energy = approach(homeo_.energy, HardwareConfig::Homeostasis::ENERGY_BASELINE, aEnergy);
+  homeo_.stimulation = approach(homeo_.stimulation, HardwareConfig::Homeostasis::STIMULATION_BASELINE, aStim);
+  homeo_.curiosity = approach(homeo_.curiosity, HardwareConfig::Homeostasis::CURIOSITY_BASELINE, aCur);
+
+  if (homeo_.idleMs >= HardwareConfig::Homeostasis::LONG_IDLE_MS) {
+    const float idleDT = dtS;
+    homeo_.stimulation = MathUtils::clamp(homeo_.stimulation - (0.03f * idleDT), 0.0f, 1.0f);
+    homeo_.energy = MathUtils::clamp(homeo_.energy - (0.02f * idleDT), 0.0f, 1.0f);
+  }
+
+  homeo_.clamp();
+}
+
+void EmotionService::applyAdaptiveDecay(float dtS) {
+  if (dtS <= 0.0f) {
+    return;
+  }
+
+  const float alpha = MathUtils::clamp(HardwareConfig::Homeostasis::BIAS_DECAY_PER_S * dtS, 0.0f, 1.0f);
+  homeo_.sociabilityBias = approach(homeo_.sociabilityBias, 0.45f, alpha);
+  homeo_.sensitivityBias = approach(homeo_.sensitivityBias, 0.35f, alpha);
+  homeo_.affinityBias = approach(homeo_.affinityBias, 0.40f, alpha);
+  homeo_.noveltyBias = approach(homeo_.noveltyBias, 0.45f, alpha);
+}
+
+void EmotionService::computeEmotionalScores(unsigned long nowMs) {
+  (void)nowMs;
+  const float e = homeo_.energy;
+  const float s = homeo_.stimulation;
+  const float c = homeo_.curiosity;
+  const float soc = homeo_.sociabilityBias;
+  const float sen = homeo_.sensitivityBias;
+  const float aff = homeo_.affinityBias;
+  const float nov = homeo_.noveltyBias;
+
+  const float idleLong = MathUtils::clamp(static_cast<float>(homeo_.idleMs) / static_cast<float>(HardwareConfig::Homeostasis::LONG_IDLE_MS), 0.0f, 1.0f);
+  const float idleBored = MathUtils::clamp(static_cast<float>(homeo_.idleMs) / static_cast<float>(HardwareConfig::Homeostasis::BORED_IDLE_MS), 0.0f, 1.0f);
+
+  homeo_.scores.sleepy = ((1.0f - e) * 0.55f) + (idleLong * 0.25f) + ((1.0f - s) * 0.20f);
+  homeo_.scores.bored = (idleBored * 0.55f) + ((1.0f - s) * 0.30f) + ((1.0f - c) * 0.15f);
+  homeo_.scores.curious = (c * 0.60f) + (nov * 0.25f) + (s * 0.15f);
+  homeo_.scores.social = (soc * 0.50f) + (aff * 0.30f) + (s * 0.20f);
+  homeo_.scores.sensitive = (sen * 0.60f) + (s * 0.25f) + ((1.0f - e) * 0.15f);
+  homeo_.scores.animated = (s * 0.55f) + (e * 0.30f) + (nov * 0.15f);
+
+  const float calmRaw = ((1.0f - s) * 0.46f) + (e * 0.24f) + ((1.0f - homeo_.scores.sensitive) * 0.30f);
+  homeo_.scores.calm = MathUtils::clamp(calmRaw, 0.0f, 1.0f);
+  homeo_.scores.clamp();
+
+  const HomeostasisMode newMode = dominantModeWithHysteresis(lastUpdateMs_);
+  if (newMode != homeo_.mode) {
+    homeo_.mode = newMode;
+    modeSinceMs_ = lastUpdateMs_;
+  }
+}
+
+void EmotionService::synthesizeEmotionFromHomeostasis() {
   const EmotionState before = state_;
 
-  state_.valence = approach(state_.valence, baseline_.valence, aValence);
-  state_.arousal = approach(state_.arousal, baseline_.arousal, aArousal);
-  state_.curiosity = approach(state_.curiosity, baseline_.curiosity, aCuriosity);
-  state_.attention = approach(state_.attention, baseline_.attention, aAttention);
-  state_.bond = approach(state_.bond, baseline_.bond, aBond);
-  state_.energy = approach(state_.energy, baseline_.energy, aEnergy);
+  state_.energy = homeo_.energy;
+  state_.curiosity = MathUtils::clamp((homeo_.curiosity * 0.65f) + (homeo_.noveltyBias * 0.20f) + (homeo_.scores.curious * 0.15f), 0.0f, 1.0f);
+  state_.attention = MathUtils::clamp((homeo_.stimulation * 0.45f) + (homeo_.scores.curious * 0.30f) + (homeo_.scores.social * 0.25f), 0.0f, 1.0f);
+  state_.bond = MathUtils::clamp((homeo_.affinityBias * 0.55f) + (homeo_.scores.social * 0.25f) + (homeo_.sociabilityBias * 0.20f), 0.0f, 1.0f);
+
+  state_.arousal = MathUtils::clamp((homeo_.stimulation * 0.52f) + (homeo_.scores.animated * 0.30f) + (homeo_.scores.sensitive * 0.18f), 0.0f, 1.0f);
+
+  const float positive = (homeo_.scores.social * 0.45f) + (homeo_.scores.calm * 0.35f) + (homeo_.scores.curious * 0.20f);
+  const float negative = (homeo_.scores.sensitive * 0.45f) + (homeo_.scores.bored * 0.30f) + (homeo_.scores.sleepy * 0.25f);
+  state_.valence = MathUtils::clamp(positive - negative, EmotionState::kValenceMin, EmotionState::kValenceMax);
+
+  switch (homeo_.mode) {
+    case HomeostasisMode::Sleepy:
+      state_.energy = MathUtils::clamp(state_.energy - 0.10f, 0.0f, 1.0f);
+      state_.arousal = MathUtils::clamp(state_.arousal - 0.08f, 0.0f, 1.0f);
+      break;
+    case HomeostasisMode::Bored:
+      state_.attention = MathUtils::clamp(state_.attention - 0.10f, 0.0f, 1.0f);
+      state_.valence = MathUtils::clamp(state_.valence - 0.08f, EmotionState::kValenceMin, EmotionState::kValenceMax);
+      break;
+    case HomeostasisMode::Animated:
+      state_.arousal = MathUtils::clamp(state_.arousal + 0.08f, 0.0f, 1.0f);
+      state_.attention = MathUtils::clamp(state_.attention + 0.06f, 0.0f, 1.0f);
+      break;
+    case HomeostasisMode::Social:
+      state_.bond = MathUtils::clamp(state_.bond + 0.08f, 0.0f, 1.0f);
+      state_.valence = MathUtils::clamp(state_.valence + 0.08f, EmotionState::kValenceMin, EmotionState::kValenceMax);
+      break;
+    case HomeostasisMode::Sensitive:
+      state_.arousal = MathUtils::clamp(state_.arousal + 0.05f, 0.0f, 1.0f);
+      state_.valence = MathUtils::clamp(state_.valence - 0.06f, EmotionState::kValenceMin, EmotionState::kValenceMax);
+      break;
+    case HomeostasisMode::Curious:
+      state_.curiosity = MathUtils::clamp(state_.curiosity + 0.06f, 0.0f, 1.0f);
+      break;
+    case HomeostasisMode::Calm:
+    default:
+      break;
+  }
+
   state_.normalize();
 
-  if (stateDelta(state_, before) > 0.0001f) {
+  if (stateDelta(state_, before) > 0.0001f || homeo_.mode != lastPublishedHomeo_.mode) {
     changedSincePublish_ = true;
   }
 }
 
-void EmotionService::applyDelta(float dValence,
-                                float dArousal,
-                                float dCuriosity,
-                                float dAttention,
-                                float dBond,
-                                float dEnergy) {
-  state_.valence += dValence;
-  state_.arousal += dArousal;
-  state_.curiosity += dCuriosity;
-  state_.attention += dAttention;
-  state_.bond += dBond;
-  state_.energy += dEnergy;
-  state_.normalize();
+HomeostasisMode EmotionService::dominantModeWithHysteresis(unsigned long nowMs) const {
+  const HomeostasisMode current = homeo_.mode;
+
+  HomeostasisMode candidate = HomeostasisMode::Calm;
+  float best = homeo_.scores.calm;
+
+  const HomeostasisMode modes[] = {
+      HomeostasisMode::Animated,
+      HomeostasisMode::Curious,
+      HomeostasisMode::Social,
+      HomeostasisMode::Sensitive,
+      HomeostasisMode::Sleepy,
+      HomeostasisMode::Bored};
+
+  for (HomeostasisMode mode : modes) {
+    const float score = scoreForMode(homeo_.scores, mode);
+    if (score > best) {
+      best = score;
+      candidate = mode;
+    }
+  }
+
+  const float currentScore = scoreForMode(homeo_.scores, current);
+  if (candidate == current) {
+    return current;
+  }
+
+  if (best < (currentScore + HardwareConfig::Homeostasis::HYSTERESIS_MARGIN)) {
+    return current;
+  }
+
+  if (nowMs - modeSinceMs_ < HardwareConfig::Homeostasis::HYSTERESIS_HOLD_MS) {
+    return current;
+  }
+
+  return candidate;
+}
+
+void EmotionService::applyHomeoDelta(float dEnergy, float dStimulation, float dCuriosity) {
+  homeo_.energy += dEnergy;
+  homeo_.stimulation += dStimulation;
+  homeo_.curiosity += dCuriosity;
+  homeo_.clamp();
   changedSincePublish_ = true;
 }
 
@@ -180,7 +343,9 @@ bool EmotionService::shouldPublish(unsigned long nowMs) const {
     return false;
   }
 
-  return stateDelta(state_, lastPublishedState_) >= HardwareConfig::Emotion::CHANGE_PUBLISH_THRESHOLD;
+  const float delta = stateDelta(state_, lastPublishedState_);
+  const bool modeChanged = (homeo_.mode != lastPublishedHomeo_.mode);
+  return modeChanged || delta >= HardwareConfig::Emotion::CHANGE_PUBLISH_THRESHOLD;
 }
 
 void EmotionService::publishEmotionChanged(unsigned long nowMs) {
@@ -192,6 +357,7 @@ void EmotionService::publishEmotionChanged(unsigned long nowMs) {
   eventBus_.publish(event);
 
   lastPublishedState_ = state_;
+  lastPublishedHomeo_ = homeo_;
   lastPublishMs_ = nowMs;
   changedSincePublish_ = false;
 }

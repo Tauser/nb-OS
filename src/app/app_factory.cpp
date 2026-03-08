@@ -94,7 +94,7 @@ AttentionService g_attentionService(g_eventBus);
 GazeService g_gazeService(g_eventBus, g_faceService, g_motionService);
 GestureService g_gestureService(g_eventBus, g_faceService, g_motionService);
 MotionSyncService g_motionSyncService(g_eventBus, g_faceService, g_motionService);
-RoutineService g_routineService(g_eventBus, g_faceService, g_motionService);
+RoutineService g_routineService(g_eventBus, g_emotionService, g_faceService, g_motionService);
 HealthMonitorService g_healthMonitorService(g_eventBus, g_diagnostics);
 
 AffinityService g_affinityService(g_eventBus);
@@ -199,5 +199,6 @@ void AppFactory::update() {
   g_simTestInputService.update(now);
 #endif
 }
+
 
 

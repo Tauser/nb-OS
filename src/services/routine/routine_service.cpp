@@ -27,8 +27,11 @@ const char* routineStateName(RoutineState state) {
 }
 }
 
-RoutineService::RoutineService(EventBus& eventBus, IFaceController& faceController, IMotion& motion)
-    : eventBus_(eventBus), faceController_(faceController), motion_(motion) {}
+RoutineService::RoutineService(EventBus& eventBus,
+                               const IEmotionProvider& emotionProvider,
+                               IFaceController& faceController,
+                               IMotion& motion)
+    : eventBus_(eventBus), emotionProvider_(emotionProvider), faceController_(faceController), motion_(motion) {}
 
 void RoutineService::init() {
   eventBus_.subscribe(EventType::EVT_IDLE, this);
@@ -182,21 +185,26 @@ void RoutineService::updateIdleAutonomy(unsigned long nowMs) {
 }
 
 RoutineService::IdleAutonomyStage RoutineService::stageForIdle(unsigned long idleForMs) const {
-  if (idleForMs >= HardwareConfig::Polish::IDLE_BORED_MS) {
+  const EmotionState& emo = emotionProvider_.getEmotionState();
+
+  if (idleForMs >= HardwareConfig::Polish::IDLE_BORED_MS && emo.valence < HardwareConfig::Homeostasis::ROUTINE_BORED_VALENCE_MAX) {
     return IdleAutonomyStage::Bored;
   }
-  if (idleForMs >= HardwareConfig::Polish::IDLE_SLEEPY_MS) {
+
+  if (idleForMs >= HardwareConfig::Polish::IDLE_SLEEPY_MS || emo.energy <= HardwareConfig::Homeostasis::ROUTINE_SLEEPY_ENERGY_MAX) {
     return IdleAutonomyStage::Sleepy;
   }
-  if (idleForMs >= HardwareConfig::Polish::IDLE_CURIOUS_MS) {
+
+  if (emo.curiosity >= HardwareConfig::Homeostasis::ROUTINE_CURIOUS_MIN || idleForMs >= HardwareConfig::Polish::IDLE_CURIOUS_MS) {
     return IdleAutonomyStage::Curious;
   }
-  if (idleForMs >= HardwareConfig::Polish::IDLE_CALM_MS) {
+
+  if (idleForMs >= HardwareConfig::Polish::IDLE_CALM_MS || emo.arousal <= HardwareConfig::Homeostasis::ROUTINE_CALM_AROUSAL_MAX) {
     return IdleAutonomyStage::Calm;
   }
+
   return IdleAutonomyStage::Attentive;
 }
-
 void RoutineService::applyStage(IdleAutonomyStage stage, unsigned long nowMs, bool stageChanged) {
   (void)nowMs;
 
@@ -252,6 +260,9 @@ void RoutineService::markInteraction(unsigned long nowMs) {
   lastAttentionRecoveryMs_ = nowMs;
   idleStage_ = IdleAutonomyStage::Attentive;
 }
+
+
+
 
 
 

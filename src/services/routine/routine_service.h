@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/event_bus.h"
+#include "../../interfaces/i_emotion_provider.h"
 #include "../../interfaces/i_event_listener.h"
 #include "../../interfaces/i_face_controller.h"
 #include "../../interfaces/i_motion.h"
@@ -8,7 +9,10 @@
 
 class RoutineService : public IEventListener {
 public:
-  RoutineService(EventBus& eventBus, IFaceController& faceController, IMotion& motion);
+  RoutineService(EventBus& eventBus,
+                 const IEmotionProvider& emotionProvider,
+                 IFaceController& faceController,
+                 IMotion& motion);
 
   void init();
   void update(unsigned long nowMs);
@@ -32,6 +36,7 @@ private:
   void markInteraction(unsigned long nowMs);
 
   EventBus& eventBus_;
+  const IEmotionProvider& emotionProvider_;
   IFaceController& faceController_;
   IMotion& motion_;
 
