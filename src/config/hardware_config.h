@@ -327,6 +327,14 @@ namespace Companion {
   constexpr float ENGAGEMENT_PUBLISH_THRESHOLD = 0.05f;
   constexpr float AFFINITY_PUBLISH_THRESHOLD = 0.03f;
 }
+namespace Recovery {
+  constexpr unsigned long SELF_TEST_BOOT_SETTLE_MS = 300;
+  constexpr unsigned long SELF_TEST_FACE_FRAME_TIMEOUT_MS = 1800;
+
+  constexpr float SAFE_MODE_FACE_INTERVAL_SCALE = 2.2f;
+  constexpr float SAFE_MODE_SENSOR_INTERVAL_SCALE = 2.0f;
+  constexpr float SAFE_MODE_HEARTBEAT_INTERVAL_SCALE = 1.6f;
+}
 namespace Health {
   constexpr unsigned long METRIC_WINDOW_MS = 1000;
   constexpr unsigned long STATUS_PUBLISH_INTERVAL_MS = 2000;
@@ -393,6 +401,7 @@ namespace System {
 }
 
 } // namespace HardwareConfig
+
 
 
 

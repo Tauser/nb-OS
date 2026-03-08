@@ -44,6 +44,7 @@ private:
 
   RobotState state_ = RobotState::Boot;
   PowerMode powerMode_ = PowerMode::Normal;
+  bool safeMode_ = false;
   unsigned long lastHeartbeatMs_ = 0;
   unsigned long lastFrameMs_ = 0;
   unsigned long lastSensorPollMs_ = 0;

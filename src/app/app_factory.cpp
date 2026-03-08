@@ -41,6 +41,8 @@
 #include "../services/power/power_service.h"
 #include "../services/preference_memory/preference_memory_service.h"
 #include "../services/routine/routine_service.h"
+#include "../services/safe_mode/safe_mode_service.h"
+#include "../services/self_test/self_test_service.h"
 #include "../services/sensor/sensor_service.h"
 #include "../services/vision/vision_service.h"
 #include "../services/voice/voice_service.h"
@@ -95,6 +97,16 @@ PreferenceMemoryService g_preferenceMemoryService(g_eventBus);
 MoodService g_moodService(g_eventBus, g_emotionService);
 PersonaService g_personaService(g_eventBus);
 
+SafeModeService g_safeModeService(g_eventBus, g_diagnostics, g_motionService);
+SelfTestService g_selfTestService(
+    g_eventBus,
+    g_diagnostics,
+    g_faceService,
+    g_motionHal,
+    g_sensorHal,
+    g_storageManager,
+    g_powerService);
+
 CloudRouter g_cloudRouter(g_eventBus);
 
 BehaviorService g_behaviorService(g_eventBus, g_emotionService, g_faceService, g_motionService, g_diagnostics);
@@ -131,6 +143,9 @@ void AppFactory::init() {
   g_moodService.init();
   g_personaService.init();
 
+  g_safeModeService.init();
+  g_selfTestService.init();
+
   g_cloudRouter.init();
   g_systemManager.init();
 }
@@ -157,6 +172,9 @@ void AppFactory::update() {
   g_preferenceMemoryService.update(now);
   g_moodService.update(now);
   g_personaService.update(now);
+
+  g_selfTestService.update(now);
+  g_safeModeService.update(now);
 
   g_cloudRouter.update(now);
 }

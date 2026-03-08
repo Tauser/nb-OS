@@ -49,6 +49,7 @@ void SystemManager::init() {
   diagnostics_.printBanner();
 
   eventBus_.subscribe(EventType::EVT_POWER_MODE_CHANGED, this);
+  eventBus_.subscribe(EventType::EVT_SAFE_MODE_CHANGED, this);
 
   publishEvent(EventType::BootStarted);
 
@@ -93,33 +94,39 @@ void SystemManager::update() {
   const unsigned long now = millis();
   const RobotConfig& cfg = configManager_.get();
 
-  const unsigned long faceInterval = scaledInterval(
+  unsigned long faceInterval = scaledInterval(
       cfg.faceFrameIntervalMs,
       intervalScaleForMode(powerMode_,
                            1.0f,
                            HardwareConfig::Power::LOW_POWER_FACE_INTERVAL_SCALE,
                            HardwareConfig::Power::SLEEP_FACE_INTERVAL_SCALE));
 
-  const unsigned long sensorInterval = scaledInterval(
+  unsigned long sensorInterval = scaledInterval(
       cfg.sensorPollIntervalMs,
       intervalScaleForMode(powerMode_,
                            1.0f,
                            HardwareConfig::Power::LOW_POWER_SENSOR_INTERVAL_SCALE,
                            HardwareConfig::Power::SLEEP_SENSOR_INTERVAL_SCALE));
 
-  const unsigned long motionInterval = scaledInterval(
+  unsigned long motionInterval = scaledInterval(
       cfg.motionUpdateIntervalMs,
       intervalScaleForMode(powerMode_,
                            1.0f,
                            HardwareConfig::Power::LOW_POWER_MOTION_INTERVAL_SCALE,
                            HardwareConfig::Power::SLEEP_MOTION_INTERVAL_SCALE));
 
-  const unsigned long heartbeatInterval = scaledInterval(
+  unsigned long heartbeatInterval = scaledInterval(
       cfg.heartbeatIntervalMs,
       intervalScaleForMode(powerMode_,
                            1.0f,
                            HardwareConfig::Power::LOW_POWER_HEARTBEAT_INTERVAL_SCALE,
                            HardwareConfig::Power::SLEEP_HEARTBEAT_INTERVAL_SCALE));
+
+  if (safeMode_) {
+    faceInterval = scaledInterval(faceInterval, HardwareConfig::Recovery::SAFE_MODE_FACE_INTERVAL_SCALE);
+    sensorInterval = scaledInterval(sensorInterval, HardwareConfig::Recovery::SAFE_MODE_SENSOR_INTERVAL_SCALE);
+    heartbeatInterval = scaledInterval(heartbeatInterval, HardwareConfig::Recovery::SAFE_MODE_HEARTBEAT_INTERVAL_SCALE);
+  }
 
   if (FeatureFlags::DISPLAY_ENABLED && now - lastFrameMs_ >= faceInterval) {
     lastFrameMs_ = now;
@@ -127,7 +134,7 @@ void SystemManager::update() {
     publishEvent(EventType::FaceFrameRendered, EventSource::FaceService);
   }
 
-  const bool cameraAllowed = (powerMode_ != PowerMode::Sleep);
+  const bool cameraAllowed = (powerMode_ != PowerMode::Sleep) && !safeMode_;
   if (FeatureFlags::CAMERA_ENABLED && cameraAllowed) {
     visionService_.update();
     publishEvent(EventType::CameraFrameSampled, EventSource::VisionService);
@@ -138,7 +145,7 @@ void SystemManager::update() {
     sensorHub_.update(now);
   }
 
-  const bool motionAllowed = (powerMode_ != PowerMode::Sleep);
+  const bool motionAllowed = (powerMode_ != PowerMode::Sleep) && !safeMode_;
   if (FeatureFlags::SERVO_BUS_ENABLED && motionAllowed && now - lastMotionUpdateMs_ >= motionInterval) {
     lastMotionUpdateMs_ = now;
     motionService_.update(now);
@@ -157,14 +164,20 @@ RobotState SystemManager::getState() const {
 }
 
 void SystemManager::onEvent(const Event& event) {
-  if (event.type != EventType::EVT_POWER_MODE_CHANGED) {
+  if (event.type == EventType::EVT_POWER_MODE_CHANGED) {
+    powerMode_ = static_cast<PowerMode>(event.value);
+
+    if (powerMode_ == PowerMode::Sleep) {
+      motionService_.center();
+    }
     return;
   }
 
-  powerMode_ = static_cast<PowerMode>(event.value);
-
-  if (powerMode_ == PowerMode::Sleep) {
-    motionService_.center();
+  if (event.type == EventType::EVT_SAFE_MODE_CHANGED) {
+    safeMode_ = (event.value != 0);
+    if (safeMode_) {
+      motionService_.center();
+    }
   }
 }
 
