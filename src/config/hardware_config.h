@@ -327,6 +327,14 @@ namespace Companion {
   constexpr float ENGAGEMENT_PUBLISH_THRESHOLD = 0.05f;
   constexpr float AFFINITY_PUBLISH_THRESHOLD = 0.03f;
 }
+namespace Ota {
+  constexpr unsigned long CHECK_INTERVAL_MS = 20000;
+  constexpr unsigned long STATUS_PUBLISH_INTERVAL_MS = 3000;
+  constexpr unsigned long APPLY_DURATION_MS = 2500;
+
+  constexpr int MIN_BATTERY_PERCENT = 35;
+  constexpr bool REQUIRE_CHARGING_TO_APPLY = false;
+}
 namespace Recovery {
   constexpr unsigned long SELF_TEST_BOOT_SETTLE_MS = 300;
   constexpr unsigned long SELF_TEST_FACE_FRAME_TIMEOUT_MS = 1800;
@@ -401,6 +409,7 @@ namespace System {
 }
 
 } // namespace HardwareConfig
+
 
 
 

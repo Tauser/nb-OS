@@ -39,6 +39,9 @@ enum class EventType {
   EVT_HEALTH_ANOMALY,
   EVT_SELF_TEST_RESULT,
   EVT_SAFE_MODE_CHANGED,
+  EVT_OTA_CHECK_REQUEST,
+  EVT_OTA_APPLY_REQUEST,
+  EVT_OTA_STATUS,
   EVT_MOTION_POSE_APPLIED,
   EVT_EMOTION_CHANGED,
   EVT_BEHAVIOR_ACTION
@@ -71,5 +74,6 @@ enum class EventSource {
   AffinityService,
   HealthMonitorService,
   SelfTestService,
-  SafeModeService
+  SafeModeService,
+  OTAService
 };

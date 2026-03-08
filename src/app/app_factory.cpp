@@ -37,6 +37,7 @@
 #include "../services/mood/mood_service.h"
 #include "../services/motion/motion_service.h"
 #include "../services/motion_sync/motion_sync_service.h"
+#include "../services/ota/ota_service.h"
 #include "../services/persona/persona_service.h"
 #include "../services/power/power_service.h"
 #include "../services/preference_memory/preference_memory_service.h"
@@ -106,6 +107,7 @@ SelfTestService g_selfTestService(
     g_sensorHal,
     g_storageManager,
     g_powerService);
+OTAService g_otaService(g_eventBus, g_diagnostics, g_storageManager, g_configManager, g_powerService);
 
 CloudRouter g_cloudRouter(g_eventBus);
 
@@ -145,6 +147,7 @@ void AppFactory::init() {
 
   g_safeModeService.init();
   g_selfTestService.init();
+  g_otaService.init();
 
   g_cloudRouter.init();
   g_systemManager.init();
@@ -175,6 +178,7 @@ void AppFactory::update() {
 
   g_selfTestService.update(now);
   g_safeModeService.update(now);
+  g_otaService.update(now);
 
   g_cloudRouter.update(now);
 }

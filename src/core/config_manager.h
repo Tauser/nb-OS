@@ -1,4 +1,5 @@
 #pragma once
+
 #include "../config/hardware_config.h"
 
 struct RobotConfig {
@@ -6,6 +7,10 @@ struct RobotConfig {
   unsigned long faceFrameIntervalMs = HardwareConfig::System::FACE_FRAME_INTERVAL_MS;
   unsigned long sensorPollIntervalMs = HardwareConfig::System::SENSOR_POLL_INTERVAL_MS;
   unsigned long motionUpdateIntervalMs = HardwareConfig::System::MOTION_UPDATE_INTERVAL_MS;
+
+  bool otaEnabled = true;
+  bool otaAutoApply = false;
+  unsigned long otaCheckIntervalMs = HardwareConfig::Ota::CHECK_INTERVAL_MS;
 };
 
 class ConfigManager {
