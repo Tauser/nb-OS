@@ -28,6 +28,10 @@ void BehaviorService::init() {
   eventBus_.subscribe(EventType::EVT_VOICE_ACTIVITY, this);
   eventBus_.subscribe(EventType::EVT_EMOTION_CHANGED, this);
   eventBus_.subscribe(EventType::EVT_INTENT_DETECTED, this);
+  eventBus_.subscribe(EventType::EVT_MOOD_CHANGED, this);
+  eventBus_.subscribe(EventType::EVT_AFFINITY_CHANGED, this);
+  eventBus_.subscribe(EventType::EVT_PREFERENCE_UPDATED, this);
+  eventBus_.subscribe(EventType::EVT_PERSONA_UPDATED, this);
 
   const unsigned long nowMs = millis();
   context_.lastInteractionMs = nowMs;
@@ -53,6 +57,26 @@ void BehaviorService::update(unsigned long nowMs) {
 
 void BehaviorService::onEvent(const Event& event) {
   if (event.type == EventType::EVT_BEHAVIOR_ACTION || event.source == EventSource::BehaviorService) {
+    return;
+  }
+
+  if (event.type == EventType::EVT_MOOD_CHANGED) {
+    moodValence_ = static_cast<float>(event.value) / 1000.0f;
+    return;
+  }
+
+  if (event.type == EventType::EVT_AFFINITY_CHANGED) {
+    affinityBond_ = static_cast<float>(event.value) / 1000.0f;
+    return;
+  }
+
+  if (event.type == EventType::EVT_PREFERENCE_UPDATED) {
+    preferredFocus_ = static_cast<AttentionFocus>(event.value);
+    return;
+  }
+
+  if (event.type == EventType::EVT_PERSONA_UPDATED) {
+    personaTone_ = static_cast<PersonaTone>(event.value);
     return;
   }
 
@@ -160,7 +184,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEmotion(unsigned long
     return action;
   }
 
-  if (emo.valence <= HardwareConfig::Behavior::EMOTION_NEG_VALENCE) {
+  if (emo.valence <= HardwareConfig::Behavior::EMOTION_NEG_VALENCE || moodValence_ < -0.35f) {
     action.id = BehaviorActionId::EmotionLowMood;
     action.priority = 32;
     action.expression = ExpressionType::Sad;
@@ -175,7 +199,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEmotion(unsigned long
       (nowMs - context_.lastInteractionMs >= HardwareConfig::Behavior::LONG_IDLE_MS)) {
     action.id = BehaviorActionId::EmotionCurious;
     action.priority = 40;
-    action.expression = ExpressionType::Curiosity;
+    action.expression = (personaTone_ == PersonaTone::Calm) ? ExpressionType::Neutral : ExpressionType::Curiosity;
     action.facePriority = EyeAnimPriority::Emotion;
     action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS;
     action.motion = context_.nextCuriousLeft ? MotionCommand::CuriousLeft : MotionCommand::CuriousRight;
@@ -194,7 +218,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEmotion(unsigned long
     return action;
   }
 
-  if (emo.valence >= HardwareConfig::Behavior::EMOTION_POS_VALENCE) {
+  if (emo.valence >= HardwareConfig::Behavior::EMOTION_POS_VALENCE || moodValence_ > 0.30f) {
     action.id = BehaviorActionId::EmotionPositive;
     action.priority = 33;
     action.expression = ExpressionType::FaceRecognized;
@@ -229,14 +253,16 @@ BehaviorService::BehaviorAction BehaviorService::actionFromAutonomy(unsigned lon
   }
 
   if (emo.attention >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_ATTENTION_MIN &&
-      emo.bond >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_BOND_MIN &&
+      affinityBond_ >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_BOND_MIN &&
       nowMs - context_.lastSocialInitiativeMs >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_INTERVAL_MS) {
     action.id = BehaviorActionId::SocialCheckIn;
     action.priority = 46;
     action.expression = ExpressionType::FaceRecognized;
     action.facePriority = EyeAnimPriority::Social;
     action.faceHoldMs = HardwareConfig::Behavior::TOUCH_FACE_HOLD_MS;
-    action.motion = (context_.autonomyTicks % 2 == 0) ? MotionCommand::SoftListen : MotionCommand::CuriousRight;
+    action.motion = (preferredFocus_ == AttentionFocus::Voice)
+                        ? MotionCommand::SoftListen
+                        : ((context_.autonomyTicks % 2 == 0) ? MotionCommand::CuriousLeft : MotionCommand::CuriousRight);
     action.enableIdleSway = true;
     return action;
   }

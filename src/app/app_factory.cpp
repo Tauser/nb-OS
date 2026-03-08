@@ -24,12 +24,22 @@
 #include "../hal/power_hal.h"
 #include "../hal/sensor_hal.h"
 #include "../hal/vision_hal.h"
+#include "../services/affinity/affinity_service.h"
+#include "../services/attention/attention_service.h"
 #include "../services/behavior/behavior_service.h"
 #include "../services/emotion/emotion_service.h"
+#include "../services/engagement/engagement_service.h"
 #include "../services/face/face_service.h"
+#include "../services/gaze/gaze_service.h"
+#include "../services/gesture/gesture_service.h"
 #include "../services/interaction/interaction_service.h"
+#include "../services/mood/mood_service.h"
 #include "../services/motion/motion_service.h"
+#include "../services/motion_sync/motion_sync_service.h"
+#include "../services/persona/persona_service.h"
 #include "../services/power/power_service.h"
+#include "../services/preference_memory/preference_memory_service.h"
+#include "../services/routine/routine_service.h"
 #include "../services/sensor/sensor_service.h"
 #include "../services/vision/vision_service.h"
 #include "../services/voice/voice_service.h"
@@ -71,6 +81,18 @@ PowerDriver g_powerDriver;
 PowerHAL g_powerHal(g_powerDriver);
 PowerService g_powerService(g_powerHal, g_eventBus);
 
+AttentionService g_attentionService(g_eventBus);
+GazeService g_gazeService(g_eventBus, g_faceService, g_motionService);
+GestureService g_gestureService(g_eventBus, g_faceService, g_motionService);
+MotionSyncService g_motionSyncService(g_eventBus, g_faceService, g_motionService);
+RoutineService g_routineService(g_eventBus, g_faceService, g_motionService);
+
+AffinityService g_affinityService(g_eventBus);
+EngagementService g_engagementService(g_eventBus);
+PreferenceMemoryService g_preferenceMemoryService(g_eventBus);
+MoodService g_moodService(g_eventBus, g_emotionService);
+PersonaService g_personaService(g_eventBus);
+
 CloudRouter g_cloudRouter(g_eventBus);
 
 BehaviorService g_behaviorService(g_eventBus, g_emotionService, g_faceService, g_motionService, g_diagnostics);
@@ -93,17 +115,44 @@ void AppFactory::init() {
   g_behaviorService.init();
   g_voiceService.init();
   g_powerService.init();
+
+  g_attentionService.init();
+  g_gazeService.init();
+  g_gestureService.init();
+  g_motionSyncService.init();
+  g_routineService.init();
+
+  g_affinityService.init();
+  g_engagementService.init();
+  g_preferenceMemoryService.init();
+  g_moodService.init();
+  g_personaService.init();
+
   g_cloudRouter.init();
   g_systemManager.init();
 }
 
 void AppFactory::update() {
   const unsigned long now = millis();
+
   g_powerService.update(now);
   g_systemManager.update();
   g_interactionService.update();
   g_emotionService.update(now);
   g_behaviorService.update(now);
   g_voiceService.update(now);
+
+  g_attentionService.update(now);
+  g_gazeService.update(now);
+  g_gestureService.update(now);
+  g_motionSyncService.update(now);
+  g_routineService.update(now);
+
+  g_affinityService.update(now);
+  g_engagementService.update(now);
+  g_preferenceMemoryService.update(now);
+  g_moodService.update(now);
+  g_personaService.update(now);
+
   g_cloudRouter.update(now);
 }

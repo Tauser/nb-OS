@@ -301,6 +301,32 @@ namespace Behavior {
   constexpr float SOCIAL_INITIATIVE_ATTENTION_MIN = 0.55f;
   constexpr float SOCIAL_INITIATIVE_BOND_MIN = 0.35f;
 }
+namespace Polish {
+  constexpr unsigned long ATTENTION_HOLD_MS = 1400;
+  constexpr unsigned long ATTENTION_IDLE_RETURN_MS = 3200;
+  constexpr unsigned long GAZE_UPDATE_INTERVAL_MS = 550;
+  constexpr unsigned long GAZE_COMMAND_COOLDOWN_MS = 700;
+
+  constexpr unsigned long GESTURE_COOLDOWN_MS = 1200;
+  constexpr unsigned long MOTION_SYNC_COOLDOWN_MS = 450;
+  constexpr unsigned long ROUTINE_UPDATE_INTERVAL_MS = 1000;
+  constexpr unsigned long ROUTINE_IDLE_TRIGGER_MS = 6000;
+}
+namespace Companion {
+  constexpr unsigned long MOOD_UPDATE_INTERVAL_MS = 1200;
+  constexpr unsigned long ENGAGEMENT_UPDATE_INTERVAL_MS = 1000;
+  constexpr unsigned long PREFERENCE_UPDATE_INTERVAL_MS = 1500;
+  constexpr unsigned long PERSONA_UPDATE_INTERVAL_MS = 1600;
+  constexpr unsigned long AFFINITY_UPDATE_INTERVAL_MS = 1200;
+
+  constexpr float MOOD_DECAY_PER_S = 0.05f;
+  constexpr float ENGAGEMENT_DECAY_PER_S = 0.10f;
+  constexpr float AFFINITY_DECAY_PER_S = 0.02f;
+
+  constexpr float MOOD_PUBLISH_THRESHOLD = 0.04f;
+  constexpr float ENGAGEMENT_PUBLISH_THRESHOLD = 0.05f;
+  constexpr float AFFINITY_PUBLISH_THRESHOLD = 0.03f;
+}
 namespace Power {
 #if NCOS_SIM_MODE
   constexpr unsigned long SAMPLE_INTERVAL_MS = 1000;
@@ -357,6 +383,8 @@ namespace System {
 }
 
 } // namespace HardwareConfig
+
+
 
 
 

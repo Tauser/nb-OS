@@ -8,6 +8,7 @@
 #include "../../interfaces/i_audio_out.h"
 #include "../../interfaces/i_event_listener.h"
 #include "../../models/intent_types.h"
+#include "../../models/persona_profile.h"
 
 class VoiceService : public IEventListener {
 public:
@@ -39,6 +40,8 @@ private:
   bool outputReady_ = false;
   bool inputReady_ = false;
   bool voiceActive_ = false;
+  bool prefersCalmStyle_ = false;
+  PersonaTone personaTone_ = PersonaTone::Warm;
 
   unsigned long lastSoundMs_ = 0;
   unsigned long lastVoiceActivityPublishMs_ = 0;

@@ -27,6 +27,14 @@ enum class EventType {
   EVT_POWER_STATUS,
   EVT_POWER_MODE_CHANGED,
   EVT_CHARGING_STATE_CHANGED,
+  EVT_ATTENTION_CHANGED,
+  EVT_GESTURE_PLAYED,
+  EVT_ROUTINE_STATE_CHANGED,
+  EVT_MOOD_CHANGED,
+  EVT_ENGAGEMENT_CHANGED,
+  EVT_PREFERENCE_UPDATED,
+  EVT_PERSONA_UPDATED,
+  EVT_AFFINITY_CHANGED,
   EVT_MOTION_POSE_APPLIED,
   EVT_EMOTION_CHANGED,
   EVT_BEHAVIOR_ACTION
@@ -46,5 +54,15 @@ enum class EventSource {
   IntentEngine,
   DialogueEngine,
   CloudRouter,
-  PowerService
+  PowerService,
+  AttentionService,
+  GazeService,
+  GestureService,
+  MotionSyncService,
+  RoutineService,
+  MoodService,
+  EngagementService,
+  PreferenceMemoryService,
+  PersonaService,
+  AffinityService
 };

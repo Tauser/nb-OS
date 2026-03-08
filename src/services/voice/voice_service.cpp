@@ -2,6 +2,7 @@
 
 #include "../../config/feature_flags.h"
 #include "../../config/hardware_config.h"
+#include "../../models/attention_focus.h"
 #include "../../models/cloud_types.h"
 #include "../../models/event.h"
 
@@ -28,6 +29,8 @@ void VoiceService::init() {
       eventBus_.subscribe(EventType::EVT_TOUCH, this);
       eventBus_.subscribe(EventType::EVT_FALL, this);
       eventBus_.subscribe(EventType::BootComplete, this);
+      eventBus_.subscribe(EventType::EVT_PERSONA_UPDATED, this);
+      eventBus_.subscribe(EventType::EVT_PREFERENCE_UPDATED, this);
     }
   }
 
@@ -128,6 +131,16 @@ void VoiceService::update(unsigned long nowMs) {
 }
 
 void VoiceService::onEvent(const Event& event) {
+  if (event.type == EventType::EVT_PERSONA_UPDATED) {
+    personaTone_ = static_cast<PersonaTone>(event.value);
+    return;
+  }
+
+  if (event.type == EventType::EVT_PREFERENCE_UPDATED) {
+    prefersCalmStyle_ = (event.value == static_cast<int>(AttentionFocus::Voice));
+    return;
+  }
+
   if (!outputReady_) {
     return;
   }
@@ -203,7 +216,19 @@ void VoiceService::publishDialogue(LocalIntent intent, unsigned long nowMs) {
   const DialogueReply reply = dialogueEngine_.buildReply(intent);
 
   if (outputReady_ && reply.toneHz > 0 && reply.toneMs > 0) {
-    audioOut_.playTone(reply.toneHz, reply.toneMs, HardwareConfig::AudioOut::DEFAULT_AMPLITUDE);
+    int toneHz = reply.toneHz;
+    int toneMs = reply.toneMs;
+
+    if (personaTone_ == PersonaTone::Playful) {
+      toneHz += 80;
+    } else if (personaTone_ == PersonaTone::Calm || prefersCalmStyle_) {
+      toneHz -= 60;
+      toneMs += 25;
+    }
+
+    audioOut_.playTone(static_cast<unsigned int>(toneHz > 100 ? toneHz : 100),
+                       static_cast<unsigned int>(toneMs > 30 ? toneMs : 30),
+                       HardwareConfig::AudioOut::DEFAULT_AMPLITUDE);
     lastSoundMs_ = nowMs;
   }
 

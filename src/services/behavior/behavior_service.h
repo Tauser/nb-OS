@@ -6,8 +6,10 @@
 #include "../../interfaces/i_event_listener.h"
 #include "../../interfaces/i_face_controller.h"
 #include "../../interfaces/i_motion.h"
+#include "../../models/attention_focus.h"
 #include "../../models/behavior_context.h"
 #include "../../models/intent_types.h"
+#include "../../models/persona_profile.h"
 
 class BehaviorService : public IEventListener {
 public:
@@ -81,6 +83,10 @@ private:
   Diagnostics& diagnostics_;
 
   BehaviorContext context_{};
+  AttentionFocus preferredFocus_ = AttentionFocus::Idle;
+  PersonaTone personaTone_ = PersonaTone::Warm;
+  float moodValence_ = 0.0f;
+  float affinityBond_ = 0.25f;
   uint8_t activePriority_ = 0;
   unsigned long activeUntilMs_ = 0;
 };
