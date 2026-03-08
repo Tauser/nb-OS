@@ -1,27 +1,38 @@
 #include "app_factory.h"
 #include <Arduino.h>
 
+#include "../ai/cloud/cloud_router.h"
+#include "../ai/dialogue/dialogue_engine.h"
+#include "../ai/intent/intent_engine.h"
+#include "../ai/vad/vad_engine.h"
 #include "../core/config_manager.h"
 #include "../core/diagnostics.h"
 #include "../core/event_bus.h"
 #include "../core/storage_manager.h"
 #include "../core/system_manager.h"
+#include "../drivers/audio/inmp441_driver.h"
+#include "../drivers/audio/max98357a_driver.h"
 #include "../drivers/camera/ov2640_driver.h"
 #include "../drivers/display/lovyan_st7789_driver.h"
 #include "../drivers/imu/mpu6050_driver.h"
 #include "../drivers/motion/feetech_bus_driver.h"
+#include "../drivers/power/power_driver.h"
 #include "../drivers/touch/touch_driver.h"
-#include "../hal/camera_hal.h"
+#include "../hal/audio_hal.h"
 #include "../hal/display_hal.h"
 #include "../hal/motion_hal.h"
+#include "../hal/power_hal.h"
 #include "../hal/sensor_hal.h"
+#include "../hal/vision_hal.h"
 #include "../services/behavior/behavior_service.h"
 #include "../services/emotion/emotion_service.h"
 #include "../services/face/face_service.h"
 #include "../services/interaction/interaction_service.h"
 #include "../services/motion/motion_service.h"
+#include "../services/power/power_service.h"
 #include "../services/sensor/sensor_service.h"
 #include "../services/vision/vision_service.h"
+#include "../services/voice/voice_service.h"
 
 namespace {
 EventBus g_eventBus;
@@ -36,8 +47,8 @@ EmotionService g_emotionService(g_eventBus);
 FaceService g_faceService(g_displayHal, g_emotionService);
 
 Ov2640Driver g_cameraDriver;
-CameraHAL g_cameraHal(g_cameraDriver);
-VisionService g_visionService(g_cameraHal);
+VisionHAL g_visionHal(g_cameraDriver);
+VisionService g_visionService(g_visionHal, g_eventBus);
 
 Mpu6050Driver g_imuDriver;
 TouchDriver g_touchDriver;
@@ -47,6 +58,20 @@ SensorService g_sensorService(g_sensorHal, g_eventBus);
 FeetechBusDriver g_motionDriver;
 MotionHAL g_motionHal(g_motionDriver);
 MotionService g_motionService(g_motionHal, g_eventBus, g_emotionService);
+
+Max98357aDriver g_audioOutDriver;
+Inmp441Driver g_audioInDriver;
+AudioHAL g_audioHal(g_audioOutDriver, g_audioInDriver);
+VadEngine g_vadEngine;
+IntentEngine g_intentEngine;
+DialogueEngine g_dialogueEngine;
+VoiceService g_voiceService(g_audioHal, g_audioHal, g_vadEngine, g_intentEngine, g_dialogueEngine, g_eventBus);
+
+PowerDriver g_powerDriver;
+PowerHAL g_powerHal(g_powerDriver);
+PowerService g_powerService(g_powerHal, g_eventBus);
+
+CloudRouter g_cloudRouter(g_eventBus);
 
 BehaviorService g_behaviorService(g_eventBus, g_emotionService, g_faceService, g_motionService, g_diagnostics);
 InteractionService g_interactionService(g_eventBus, g_diagnostics);
@@ -66,12 +91,19 @@ void AppFactory::init() {
   g_interactionService.init();
   g_emotionService.init();
   g_behaviorService.init();
+  g_voiceService.init();
+  g_powerService.init();
+  g_cloudRouter.init();
   g_systemManager.init();
 }
 
 void AppFactory::update() {
+  const unsigned long now = millis();
+  g_powerService.update(now);
   g_systemManager.update();
   g_interactionService.update();
-  g_emotionService.update(millis());
-  g_behaviorService.update(millis());
+  g_emotionService.update(now);
+  g_behaviorService.update(now);
+  g_voiceService.update(now);
+  g_cloudRouter.update(now);
 }

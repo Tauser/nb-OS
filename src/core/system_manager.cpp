@@ -1,6 +1,7 @@
 #include "system_manager.h"
 
 #include "../config/feature_flags.h"
+#include "../config/hardware_config.h"
 #include "../models/event.h"
 #include <Arduino.h>
 
@@ -8,6 +9,20 @@ namespace {
 void logModule(Diagnostics& diagnostics, const char* moduleName, bool enabled) {
   if (enabled) {
     diagnostics.logInfo(moduleName);
+  }
+}
+
+float intervalScaleForMode(PowerMode mode, float normalScale, float lowScale, float sleepScale) {
+  switch (mode) {
+    case PowerMode::LowPower:
+      return lowScale;
+    case PowerMode::Sleep:
+      return sleepScale;
+    case PowerMode::Charging:
+      return normalScale;
+    case PowerMode::Normal:
+    default:
+      return normalScale;
   }
 }
 }
@@ -32,6 +47,8 @@ SystemManager::SystemManager(EventBus& eventBus,
 void SystemManager::init() {
   diagnostics_.begin();
   diagnostics_.printBanner();
+
+  eventBus_.subscribe(EventType::EVT_POWER_MODE_CHANGED, this);
 
   publishEvent(EventType::BootStarted);
 
@@ -76,29 +93,58 @@ void SystemManager::update() {
   const unsigned long now = millis();
   const RobotConfig& cfg = configManager_.get();
 
-  if (FeatureFlags::DISPLAY_ENABLED && now - lastFrameMs_ >= cfg.faceFrameIntervalMs) {
+  const unsigned long faceInterval = scaledInterval(
+      cfg.faceFrameIntervalMs,
+      intervalScaleForMode(powerMode_,
+                           1.0f,
+                           HardwareConfig::Power::LOW_POWER_FACE_INTERVAL_SCALE,
+                           HardwareConfig::Power::SLEEP_FACE_INTERVAL_SCALE));
+
+  const unsigned long sensorInterval = scaledInterval(
+      cfg.sensorPollIntervalMs,
+      intervalScaleForMode(powerMode_,
+                           1.0f,
+                           HardwareConfig::Power::LOW_POWER_SENSOR_INTERVAL_SCALE,
+                           HardwareConfig::Power::SLEEP_SENSOR_INTERVAL_SCALE));
+
+  const unsigned long motionInterval = scaledInterval(
+      cfg.motionUpdateIntervalMs,
+      intervalScaleForMode(powerMode_,
+                           1.0f,
+                           HardwareConfig::Power::LOW_POWER_MOTION_INTERVAL_SCALE,
+                           HardwareConfig::Power::SLEEP_MOTION_INTERVAL_SCALE));
+
+  const unsigned long heartbeatInterval = scaledInterval(
+      cfg.heartbeatIntervalMs,
+      intervalScaleForMode(powerMode_,
+                           1.0f,
+                           HardwareConfig::Power::LOW_POWER_HEARTBEAT_INTERVAL_SCALE,
+                           HardwareConfig::Power::SLEEP_HEARTBEAT_INTERVAL_SCALE));
+
+  if (FeatureFlags::DISPLAY_ENABLED && now - lastFrameMs_ >= faceInterval) {
     lastFrameMs_ = now;
     visualService_.update(now);
     publishEvent(EventType::FaceFrameRendered, EventSource::FaceService);
   }
 
-  if (FeatureFlags::CAMERA_ENABLED) {
+  const bool cameraAllowed = (powerMode_ != PowerMode::Sleep);
+  if (FeatureFlags::CAMERA_ENABLED && cameraAllowed) {
     visionService_.update();
     publishEvent(EventType::CameraFrameSampled, EventSource::VisionService);
   }
 
-  if ((FeatureFlags::IMU_ENABLED || FeatureFlags::TOUCH_ENABLED) &&
-      now - lastSensorPollMs_ >= cfg.sensorPollIntervalMs) {
+  if ((FeatureFlags::IMU_ENABLED || FeatureFlags::TOUCH_ENABLED) && now - lastSensorPollMs_ >= sensorInterval) {
     lastSensorPollMs_ = now;
     sensorHub_.update(now);
   }
 
-  if (FeatureFlags::SERVO_BUS_ENABLED && now - lastMotionUpdateMs_ >= cfg.motionUpdateIntervalMs) {
+  const bool motionAllowed = (powerMode_ != PowerMode::Sleep);
+  if (FeatureFlags::SERVO_BUS_ENABLED && motionAllowed && now - lastMotionUpdateMs_ >= motionInterval) {
     lastMotionUpdateMs_ = now;
     motionService_.update(now);
   }
 
-  if (now - lastHeartbeatMs_ >= cfg.heartbeatIntervalMs) {
+  if (now - lastHeartbeatMs_ >= heartbeatInterval) {
     lastHeartbeatMs_ = now;
     publishEvent(EventType::Heartbeat);
     publishEvent(EventType::EVT_IDLE);
@@ -108,6 +154,18 @@ void SystemManager::update() {
 
 RobotState SystemManager::getState() const {
   return state_;
+}
+
+void SystemManager::onEvent(const Event& event) {
+  if (event.type != EventType::EVT_POWER_MODE_CHANGED) {
+    return;
+  }
+
+  powerMode_ = static_cast<PowerMode>(event.value);
+
+  if (powerMode_ == PowerMode::Sleep) {
+    motionService_.center();
+  }
 }
 
 void SystemManager::publishEvent(EventType type, EventSource source, int value) {
@@ -130,4 +188,13 @@ const char* SystemManager::getStateName() const {
     default:
       return "Unknown";
   }
+}
+
+unsigned long SystemManager::scaledInterval(unsigned long baseMs, float scale) const {
+  if (scale <= 0.0f) {
+    return baseMs;
+  }
+
+  const unsigned long scaled = static_cast<unsigned long>(static_cast<float>(baseMs) * scale);
+  return (scaled == 0UL) ? 1UL : scaled;
 }

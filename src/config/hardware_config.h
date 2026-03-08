@@ -57,6 +57,42 @@ namespace Face {
 #endif
 }
 
+namespace Vision {
+  constexpr unsigned int DARK_LUMA_THRESHOLD = 240;
+  constexpr unsigned int MOTION_SCORE_THRESHOLD = 90;
+  constexpr unsigned long EVENT_COOLDOWN_MS = 300;
+}
+namespace Cloud {
+  constexpr unsigned long REQUEST_TIMEOUT_MS = 1600;
+  constexpr unsigned long REMOTE_LATENCY_MS = 280;
+  constexpr unsigned long REQUEST_COOLDOWN_MS = 500;
+  constexpr unsigned int MAX_RETRIES = 1;
+}
+namespace AudioIn {
+  constexpr unsigned long SAMPLE_RATE_HZ = 16000;
+  constexpr unsigned int DMA_BUFFER_SAMPLES = 256;
+  constexpr unsigned int FRAME_SAMPLES = 160; // 10 ms @ 16 kHz
+  constexpr unsigned long READ_TIMEOUT_MS = 8;
+}
+namespace AudioOut {
+  constexpr unsigned long SAMPLE_RATE_HZ = 16000;
+  constexpr unsigned int DMA_BUFFER_SAMPLES = 256;
+  constexpr unsigned long WRITE_TIMEOUT_MS = 25;
+
+  constexpr float DEFAULT_AMPLITUDE = 0.18f;
+  constexpr unsigned long SFX_COOLDOWN_MS = 120;
+
+  constexpr unsigned int BOOT_FREQ_HZ = 880;
+  constexpr unsigned int BOOT_TONE_MS = 110;
+  constexpr unsigned int TOUCH_FREQ_HZ = 1200;
+  constexpr unsigned int TOUCH_TONE_MS = 60;
+  constexpr unsigned int ALERT_FREQ_HZ = 340;
+  constexpr unsigned int ALERT_TONE_MS = 180;
+
+  constexpr unsigned int NOTIFY_FREQ_A_HZ = 990;
+  constexpr unsigned int NOTIFY_FREQ_B_HZ = 1320;
+  constexpr unsigned int NOTIFY_TONE_MS = 60;
+}
 namespace IMU {
   constexpr int I2C_ADDRESS = 0x68;
   constexpr float ACCEL_G_PER_LSB = 1.0f / 16384.0f;
@@ -136,6 +172,47 @@ namespace MotionReactions {
   constexpr unsigned long REACTION_MAX_MS = 420;
 }
 
+namespace VAD {
+  constexpr float NOISE_ALPHA_IDLE = 0.08f;
+  constexpr float NOISE_ALPHA_ACTIVE = 0.02f;
+  constexpr float ENERGY_THRESHOLD_DELTA = 0.018f;
+  constexpr unsigned int START_CONSECUTIVE_FRAMES = 3;
+  constexpr unsigned int END_CONSECUTIVE_FRAMES = 8;
+}
+
+namespace Voice {
+  constexpr unsigned long ACTIVITY_PUBLISH_INTERVAL_MS = 220;
+  constexpr unsigned long BURST_GAP_MS = 320;
+}
+namespace Intent {
+  constexpr unsigned int MIN_COMMAND_MS = 120;
+  constexpr unsigned int HELLO_MAX_MS = 420;
+  constexpr unsigned int HELLO_MAX_LEVEL = 190;
+
+  constexpr unsigned int WAKE_MAX_MS = 520;
+  constexpr unsigned int WAKE_MIN_PEAK_LEVEL = 260;
+
+  constexpr unsigned int STATUS_MIN_MS = 420;
+  constexpr unsigned int STATUS_MAX_MS = 1050;
+
+  constexpr unsigned int SLEEP_MIN_MS = 950;
+  constexpr unsigned int SLEEP_MAX_LEVEL = 180;
+
+  constexpr unsigned int PHOTO_BURST_MIN = 2;
+}
+
+namespace Dialogue {
+  constexpr unsigned int HELLO_TONE_HZ = 980;
+  constexpr unsigned int HELLO_TONE_MS = 80;
+  constexpr unsigned int STATUS_TONE_HZ = 760;
+  constexpr unsigned int STATUS_TONE_MS = 90;
+  constexpr unsigned int SLEEP_TONE_HZ = 420;
+  constexpr unsigned int SLEEP_TONE_MS = 160;
+  constexpr unsigned int WAKE_TONE_HZ = 1180;
+  constexpr unsigned int WAKE_TONE_MS = 100;
+  constexpr unsigned int PHOTO_TONE_HZ = 1500;
+  constexpr unsigned int PHOTO_TONE_MS = 70;
+}
 namespace Emotion {
   constexpr float DECAY_VALENCE_PER_S = 0.12f;
   constexpr float DECAY_AROUSAL_PER_S = 0.28f;
@@ -215,6 +292,50 @@ namespace Behavior {
   constexpr float EMOTION_HIGH_AROUSAL = 0.72f;
 
   constexpr unsigned long LONG_IDLE_MS = 7000;
+  constexpr unsigned long AUTONOMY_MIN_IDLE_MS = 2500;
+  constexpr unsigned long AUTONOMY_ACTION_COOLDOWN_MS = 2400;
+  constexpr unsigned int AUTONOMY_IDLE_TICKS_FOR_SCAN = 2;
+  constexpr float AUTONOMY_CURIOSITY_SCAN_MIN = 0.45f;
+
+  constexpr unsigned long SOCIAL_INITIATIVE_INTERVAL_MS = 9000;
+  constexpr float SOCIAL_INITIATIVE_ATTENTION_MIN = 0.55f;
+  constexpr float SOCIAL_INITIATIVE_BOND_MIN = 0.35f;
+}
+namespace Power {
+#if NCOS_SIM_MODE
+  constexpr unsigned long SAMPLE_INTERVAL_MS = 1000;
+  constexpr int SIM_BATTERY_PERCENT = 82;
+  constexpr bool SIM_CHARGING = false;
+#else
+  constexpr unsigned long SAMPLE_INTERVAL_MS = 1200;
+  constexpr int SIM_BATTERY_PERCENT = 100;
+  constexpr bool SIM_CHARGING = false;
+#endif
+
+  constexpr int ADC_MAX = 4095;
+  constexpr int ADC_REF_MV = 3300;
+  constexpr float BATTERY_DIVIDER_RATIO = 2.0f;
+
+  constexpr int BATTERY_EMPTY_MV = 3300;
+  constexpr int BATTERY_FULL_MV = 4200;
+  constexpr int CHARGE_DETECT_ACTIVE_LEVEL = 0;
+
+  constexpr int LOW_POWER_ENTER_PERCENT = 25;
+  constexpr int LOW_POWER_EXIT_PERCENT = 30;
+  constexpr int SLEEP_ENTER_PERCENT = 10;
+  constexpr int SLEEP_EXIT_PERCENT = 16;
+
+  constexpr unsigned long PUBLISH_STATUS_INTERVAL_MS = 4000;
+
+  constexpr float LOW_POWER_FACE_INTERVAL_SCALE = 1.8f;
+  constexpr float LOW_POWER_SENSOR_INTERVAL_SCALE = 1.4f;
+  constexpr float LOW_POWER_MOTION_INTERVAL_SCALE = 1.8f;
+  constexpr float LOW_POWER_HEARTBEAT_INTERVAL_SCALE = 2.0f;
+
+  constexpr float SLEEP_FACE_INTERVAL_SCALE = 4.0f;
+  constexpr float SLEEP_SENSOR_INTERVAL_SCALE = 3.0f;
+  constexpr float SLEEP_MOTION_INTERVAL_SCALE = 4.0f;
+  constexpr float SLEEP_HEARTBEAT_INTERVAL_SCALE = 5.0f;
 }
 namespace System {
 #if NCOS_SIM_MODE && NCOS_SIM_ULTRA
@@ -236,6 +357,15 @@ namespace System {
 }
 
 } // namespace HardwareConfig
+
+
+
+
+
+
+
+
+
 
 
 

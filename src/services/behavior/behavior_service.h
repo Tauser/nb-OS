@@ -7,6 +7,7 @@
 #include "../../interfaces/i_face_controller.h"
 #include "../../interfaces/i_motion.h"
 #include "../../models/behavior_context.h"
+#include "../../models/intent_types.h"
 
 class BehaviorService : public IEventListener {
 public:
@@ -44,7 +45,15 @@ private:
     EmotionPositive,
     EmotionLowEnergy,
     EmotionLowMood,
-    EmotionHighArousal
+    EmotionHighArousal,
+    IdleScan,
+    IdleObserve,
+    SocialCheckIn,
+    IntentHello,
+    IntentStatus,
+    IntentSleep,
+    IntentWake,
+    IntentPhoto
   };
 
   struct BehaviorAction {
@@ -59,6 +68,8 @@ private:
 
   BehaviorAction actionFromEvent(const Event& event);
   BehaviorAction actionFromEmotion(unsigned long nowMs);
+  BehaviorAction actionFromAutonomy(unsigned long nowMs);
+  BehaviorAction actionFromIntent(LocalIntent intent);
   bool tryApplyAction(const BehaviorAction& action, unsigned long nowMs);
   void applyMotion(MotionCommand command);
   void publishActionEvent(BehaviorActionId actionId, unsigned long nowMs);

@@ -63,6 +63,13 @@ namespace Touch {
   constexpr int DATA = 38;
 }
 
+namespace Power {
+  // Battery sense via ADC pin with resistor divider.
+  constexpr int BATTERY_ADC = 4;
+  // Optional charging detect pin from charger IC status.
+  constexpr int CHARGE_DETECT = 5;
+}
 } // namespace HardwarePins
+
 
 

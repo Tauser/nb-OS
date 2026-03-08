@@ -3,9 +3,9 @@
 #include "../interfaces/i_camera.h"
 #include "../interfaces/i_camera_port.h"
 
-class CameraHAL : public ICameraPort {
+class VisionHAL : public ICameraPort {
 public:
-  explicit CameraHAL(ICamera& camera);
+  explicit VisionHAL(ICamera& camera);
 
   bool init() override;
   bool sampleFrame(VisionSnapshot& outSnapshot) override;

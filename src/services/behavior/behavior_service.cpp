@@ -2,6 +2,7 @@
 
 #include "../../config/hardware_config.h"
 #include "../../models/event.h"
+#include <Arduino.h>
 
 namespace {
 const char* kBehaviorEventLog = "[BEHAVIOR] action";
@@ -26,13 +27,14 @@ void BehaviorService::init() {
   eventBus_.subscribe(EventType::EVT_IDLE, this);
   eventBus_.subscribe(EventType::EVT_VOICE_ACTIVITY, this);
   eventBus_.subscribe(EventType::EVT_EMOTION_CHANGED, this);
+  eventBus_.subscribe(EventType::EVT_INTENT_DETECTED, this);
+
+  const unsigned long nowMs = millis();
+  context_.lastInteractionMs = nowMs;
+  context_.lastIdleEvalMs = nowMs;
 }
 
 void BehaviorService::update(unsigned long nowMs) {
-  if (context_.lastIdleEvalMs == 0) {
-    context_.lastIdleEvalMs = nowMs;
-  }
-
   if (activePriority_ > 0 && nowMs >= activeUntilMs_) {
     activePriority_ = 0;
   }
@@ -42,8 +44,11 @@ void BehaviorService::update(unsigned long nowMs) {
   }
 
   context_.lastIdleEvalMs = nowMs;
-  const BehaviorAction emotionalAction = actionFromEmotion(nowMs);
-  tryApplyAction(emotionalAction, nowMs);
+
+  bool applied = tryApplyAction(actionFromEmotion(nowMs), nowMs);
+  if (!applied) {
+    tryApplyAction(actionFromAutonomy(nowMs), nowMs);
+  }
 }
 
 void BehaviorService::onEvent(const Event& event) {
@@ -59,8 +64,10 @@ void BehaviorService::onEvent(const Event& event) {
       event.type == EventType::EVT_TILT ||
       event.type == EventType::EVT_SHAKE ||
       event.type == EventType::EVT_FALL ||
-      event.type == EventType::EVT_VOICE_ACTIVITY) {
+      event.type == EventType::EVT_VOICE_ACTIVITY ||
+      event.type == EventType::EVT_INTENT_DETECTED) {
     context_.lastInteractionMs = nowMs;
+    context_.idleTicks = 0;
   }
 
   if (event.type == EventType::EVT_IDLE) {
@@ -68,8 +75,13 @@ void BehaviorService::onEvent(const Event& event) {
     return;
   }
 
-  const BehaviorAction action = actionFromEvent(event);
-  tryApplyAction(action, nowMs);
+  if (event.type == EventType::EVT_INTENT_DETECTED) {
+    const LocalIntent intent = static_cast<LocalIntent>(event.value);
+    tryApplyAction(actionFromIntent(intent), nowMs);
+    return;
+  }
+
+  tryApplyAction(actionFromEvent(event), nowMs);
 }
 
 BehaviorService::BehaviorAction BehaviorService::actionFromEvent(const Event& event) {
@@ -203,6 +215,119 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEmotion(unsigned long
   return action;
 }
 
+BehaviorService::BehaviorAction BehaviorService::actionFromAutonomy(unsigned long nowMs) {
+  BehaviorAction action;
+  const EmotionState& emo = emotionProvider_.getEmotionState();
+  const unsigned long idleForMs = nowMs - context_.lastInteractionMs;
+
+  if (idleForMs < HardwareConfig::Behavior::AUTONOMY_MIN_IDLE_MS) {
+    return action;
+  }
+
+  if (nowMs - context_.lastAutonomyActionMs < HardwareConfig::Behavior::AUTONOMY_ACTION_COOLDOWN_MS) {
+    return action;
+  }
+
+  if (emo.attention >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_ATTENTION_MIN &&
+      emo.bond >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_BOND_MIN &&
+      nowMs - context_.lastSocialInitiativeMs >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_INTERVAL_MS) {
+    action.id = BehaviorActionId::SocialCheckIn;
+    action.priority = 46;
+    action.expression = ExpressionType::FaceRecognized;
+    action.facePriority = EyeAnimPriority::Social;
+    action.faceHoldMs = HardwareConfig::Behavior::TOUCH_FACE_HOLD_MS;
+    action.motion = (context_.autonomyTicks % 2 == 0) ? MotionCommand::SoftListen : MotionCommand::CuriousRight;
+    action.enableIdleSway = true;
+    return action;
+  }
+
+  if (emo.curiosity >= HardwareConfig::Behavior::AUTONOMY_CURIOSITY_SCAN_MIN &&
+      context_.idleTicks >= HardwareConfig::Behavior::AUTONOMY_IDLE_TICKS_FOR_SCAN) {
+    action.id = BehaviorActionId::IdleScan;
+    action.priority = 36;
+    action.expression = ExpressionType::Curiosity;
+    action.facePriority = EyeAnimPriority::Idle;
+    action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS;
+    action.motion = context_.nextCuriousLeft ? MotionCommand::CuriousLeft : MotionCommand::CuriousRight;
+    action.enableIdleSway = true;
+    return action;
+  }
+
+  if (idleForMs >= HardwareConfig::Behavior::LONG_IDLE_MS) {
+    action.id = BehaviorActionId::IdleObserve;
+    action.priority = 34;
+    action.expression = ExpressionType::Neutral;
+    action.facePriority = EyeAnimPriority::Idle;
+    action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS;
+    action.motion = context_.nextYawLeft ? MotionCommand::YawLeft : MotionCommand::YawRight;
+    action.enableIdleSway = true;
+    return action;
+  }
+
+  return action;
+}
+
+BehaviorService::BehaviorAction BehaviorService::actionFromIntent(LocalIntent intent) {
+  BehaviorAction action;
+
+  switch (intent) {
+    case LocalIntent::Hello:
+      action.id = BehaviorActionId::IntentHello;
+      action.priority = 72;
+      action.expression = ExpressionType::FaceRecognized;
+      action.facePriority = EyeAnimPriority::Social;
+      action.faceHoldMs = HardwareConfig::Behavior::TOUCH_FACE_HOLD_MS;
+      action.motion = MotionCommand::CuriousRight;
+      action.enableIdleSway = true;
+      break;
+
+    case LocalIntent::Status:
+      action.id = BehaviorActionId::IntentStatus;
+      action.priority = 78;
+      action.expression = ExpressionType::Curiosity;
+      action.facePriority = EyeAnimPriority::Social;
+      action.faceHoldMs = HardwareConfig::Behavior::TILT_FACE_HOLD_MS;
+      action.motion = MotionCommand::Center;
+      action.enableIdleSway = true;
+      break;
+
+    case LocalIntent::Sleep:
+      action.id = BehaviorActionId::IntentSleep;
+      action.priority = 82;
+      action.expression = ExpressionType::Sad;
+      action.facePriority = EyeAnimPriority::Alert;
+      action.faceHoldMs = HardwareConfig::Behavior::SHAKE_FACE_HOLD_MS;
+      action.motion = MotionCommand::SoftListen;
+      action.enableIdleSway = false;
+      break;
+
+    case LocalIntent::Wake:
+      action.id = BehaviorActionId::IntentWake;
+      action.priority = 84;
+      action.expression = ExpressionType::FaceRecognized;
+      action.facePriority = EyeAnimPriority::Alert;
+      action.faceHoldMs = HardwareConfig::Behavior::SHAKE_FACE_HOLD_MS;
+      action.motion = MotionCommand::Center;
+      action.enableIdleSway = true;
+      break;
+
+    case LocalIntent::Photo:
+      action.id = BehaviorActionId::IntentPhoto;
+      action.priority = 90;
+      action.expression = ExpressionType::Curiosity;
+      action.facePriority = EyeAnimPriority::Critical;
+      action.faceHoldMs = HardwareConfig::Behavior::FALL_FACE_HOLD_MS;
+      action.motion = MotionCommand::Center;
+      action.enableIdleSway = false;
+      break;
+
+    default:
+      break;
+  }
+
+  return action;
+}
+
 bool BehaviorService::tryApplyAction(const BehaviorAction& action, unsigned long nowMs) {
   if (action.id == BehaviorActionId::None) {
     return false;
@@ -227,6 +352,17 @@ bool BehaviorService::tryApplyAction(const BehaviorAction& action, unsigned long
   applyMotion(action.motion);
   if (action.enableIdleSway) {
     motion_.idleSway();
+  }
+
+  if (action.id == BehaviorActionId::IdleScan ||
+      action.id == BehaviorActionId::IdleObserve ||
+      action.id == BehaviorActionId::SocialCheckIn) {
+    context_.autonomyTicks++;
+    context_.lastAutonomyActionMs = nowMs;
+
+    if (action.id == BehaviorActionId::SocialCheckIn) {
+      context_.lastSocialInitiativeMs = nowMs;
+    }
   }
 
   activePriority_ = action.priority;
