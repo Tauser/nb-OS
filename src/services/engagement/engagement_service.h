@@ -2,6 +2,7 @@
 
 #include "../../core/event_bus.h"
 #include "../../interfaces/i_event_listener.h"
+#include "../../models/attention_focus.h"
 #include "../../models/engagement_state.h"
 
 class EngagementService : public IEventListener {
@@ -20,5 +21,8 @@ private:
   EventBus& eventBus_;
   EngagementState state_{};
   float lastPublished_ = 0.0f;
+  AttentionFocus focus_ = AttentionFocus::Idle;
+  float memorySignal_ = 0.0f;
+  unsigned long lastInteractionMs_ = 0;
   unsigned long lastUpdateMs_ = 0;
 };

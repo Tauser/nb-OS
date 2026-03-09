@@ -33,6 +33,7 @@ enum class EventType {
   EVT_MOOD_CHANGED,
   EVT_MOOD_PROFILE_CHANGED,
   EVT_ENGAGEMENT_CHANGED,
+  EVT_SOCIAL_TIMING_CHANGED,
   EVT_PREFERENCE_UPDATED,
   EVT_PERSONA_UPDATED,
   EVT_AFFINITY_CHANGED,
@@ -71,6 +72,7 @@ enum class EventSource {
   RoutineService,
   MoodService,
   EngagementService,
+  SocialTimingService,
   PreferenceMemoryService,
   PersonaService,
   AffinityService,
@@ -80,4 +82,6 @@ enum class EventSource {
   SafeModeService,
   OTAService
 };
+
+
 

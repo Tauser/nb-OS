@@ -6,17 +6,21 @@
 #include "../../interfaces/i_event_listener.h"
 #include "../../interfaces/i_face_controller.h"
 #include "../../interfaces/i_motion.h"
+#include "../../interfaces/i_persona_provider.h"
+#include "../../interfaces/i_social_timing_provider.h"
 #include "../../models/attention_focus.h"
 #include "../../models/behavior_context.h"
 #include "../../models/intent_types.h"
+#include "../../models/mood_profile.h"
 #include "../../models/persona_profile.h"
 #include "../../models/routine_state.h"
-#include "../../models/mood_profile.h"
 
 class BehaviorService : public IEventListener {
 public:
   BehaviorService(EventBus& eventBus,
                   const IEmotionProvider& emotionProvider,
+                  const IPersonaProvider& personaProvider,
+                  const ISocialTimingProvider& socialTimingProvider,
                   IFaceController& faceController,
                   IMotion& motion,
                   Diagnostics& diagnostics);
@@ -80,6 +84,8 @@ private:
 
   EventBus& eventBus_;
   const IEmotionProvider& emotionProvider_;
+  const IPersonaProvider& personaProvider_;
+  const ISocialTimingProvider& socialTimingProvider_;
   IFaceController& faceController_;
   IMotion& motion_;
   Diagnostics& diagnostics_;
@@ -87,6 +93,13 @@ private:
   BehaviorContext context_{};
   AttentionFocus preferredFocus_ = AttentionFocus::Idle;
   PersonaTone personaTone_ = PersonaTone::Warm;
+  float personaInitiative_ = 0.5f;
+  float personaIntensity_ = 0.5f;
+  float personaSociability_ = 0.5f;
+  float socialResponsiveness_ = 0.5f;
+  float socialInitiative_ = 0.5f;
+  float socialPersistence_ = 0.5f;
+  float socialPauseFactor_ = 0.5f;
   float moodValence_ = 0.0f;
   MoodProfile moodProfile_ = MoodProfile::Calm;
   float affinityBond_ = 0.25f;
@@ -94,4 +107,3 @@ private:
   uint8_t activePriority_ = 0;
   unsigned long activeUntilMs_ = 0;
 };
-

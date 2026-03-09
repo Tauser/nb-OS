@@ -381,6 +381,29 @@ namespace Companion {
   constexpr float MOOD_PUBLISH_THRESHOLD = 0.04f;
   constexpr float ENGAGEMENT_PUBLISH_THRESHOLD = 0.05f;
   constexpr float AFFINITY_PUBLISH_THRESHOLD = 0.03f;
+  constexpr float PERSONA_MEMORY_SIGNAL_NORM = 2500.0f;
+  constexpr float PERSONA_VOICE_PREF_INC = 0.03f;
+  constexpr float PERSONA_TOUCH_PREF_DEC = 0.015f;
+  constexpr float PERSONA_VOICE_PREF_PLAYFUL_MIN = 0.62f;
+  constexpr float PERSONA_NEG_MOOD_CALM_MAX = -0.20f;
+  constexpr float PERSONA_LOW_ENGAGEMENT_CALM_MAX = 0.35f;
+  constexpr float PERSONA_PLAYFUL_ENGAGEMENT_MIN = 0.62f;
+  constexpr float PERSONA_PLAYFUL_AFFINITY_MIN = 0.40f;
+  constexpr float PERSONA_PLAYFUL_MOOD_MIN = 0.10f;
+  constexpr float PERSONA_ADAPT_RATE_EXPRESSIVE = 0.25f;
+  constexpr float PERSONA_ADAPT_RATE_SOCIABILITY = 0.20f;
+  constexpr float PERSONA_ADAPT_RATE_INITIATIVE = 0.20f;
+  constexpr float PERSONA_ADAPT_RATE_INTENSITY = 0.22f;
+  constexpr float PERSONA_ADAPT_RATE_PROXIMITY = 0.18f;
+  constexpr float PERSONA_PUBLISH_DELTA = 0.06f;
+
+  constexpr float AFFINITY_MEMORY_SIGNAL_NORM = 2500.0f;
+  constexpr float AFFINITY_MEMORY_DECAY_REDUCTION = 0.35f;
+  constexpr float AFFINITY_VOICE_DECAY_SCALE = 0.90f;
+  constexpr unsigned long SOCIAL_TIMING_UPDATE_INTERVAL_MS = 900;
+  constexpr float SOCIAL_TIMING_PUBLISH_THRESHOLD = 0.05f;
+  constexpr float SOCIAL_TIMING_MEMORY_SIGNAL_NORM = 2500.0f;
+
 }
 namespace Memory {
   constexpr unsigned long UPDATE_INTERVAL_MS = 1000;
@@ -469,6 +492,8 @@ namespace System {
 }
 
 } // namespace HardwareConfig
+
+
 
 
 

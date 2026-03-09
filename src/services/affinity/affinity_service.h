@@ -20,5 +20,7 @@ private:
   EventBus& eventBus_;
   AffinityState state_{};
   float lastPublished_ = 0.0f;
+  float memorySignal_ = 0.0f;
+  bool prefersVoice_ = false;
   unsigned long lastUpdateMs_ = 0;
 };

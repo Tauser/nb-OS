@@ -2,6 +2,7 @@
 
 #include "../../config/hardware_config.h"
 #include "../../models/event.h"
+#include "../../utils/math_utils.h"
 #include <Arduino.h>
 
 #ifndef NCOS_SIM_MODE
@@ -14,11 +15,15 @@ const char* kBehaviorEventLog = "[BEHAVIOR] action";
 
 BehaviorService::BehaviorService(EventBus& eventBus,
                                  const IEmotionProvider& emotionProvider,
+                                 const IPersonaProvider& personaProvider,
+                                 const ISocialTimingProvider& socialTimingProvider,
                                  IFaceController& faceController,
                                  IMotion& motion,
                                  Diagnostics& diagnostics)
     : eventBus_(eventBus),
       emotionProvider_(emotionProvider),
+      personaProvider_(personaProvider),
+      socialTimingProvider_(socialTimingProvider),
       faceController_(faceController),
       motion_(motion),
       diagnostics_(diagnostics) {}
@@ -54,6 +59,18 @@ void BehaviorService::update(unsigned long nowMs) {
   }
 
   context_.lastIdleEvalMs = nowMs;
+
+  const PersonaProfile& persona = personaProvider_.getProfile();
+  personaTone_ = persona.tone;
+  personaInitiative_ = persona.initiative;
+  personaIntensity_ = persona.intensity;
+  personaSociability_ = persona.sociability;
+
+  const SocialTimingState& socialTiming = socialTimingProvider_.getState();
+  socialResponsiveness_ = socialTiming.responsiveness;
+  socialInitiative_ = socialTiming.initiative;
+  socialPersistence_ = socialTiming.persistence;
+  socialPauseFactor_ = socialTiming.pauseFactor;
 
   bool applied = tryApplyAction(actionFromEmotion(nowMs), nowMs);
   if (!applied) {
@@ -192,6 +209,8 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEmotion(unsigned long
   }
 
   BehaviorAction action;
+  const unsigned long personaHoldBoost = static_cast<unsigned long>(personaIntensity_ * 140.0f);
+  const uint8_t personaPriorityBoost = static_cast<uint8_t>(personaInitiative_ * 4.0f);
 
   switch (moodProfile_) {
     case MoodProfile::Sleepy:
@@ -206,10 +225,10 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEmotion(unsigned long
 
     case MoodProfile::Curious:
       action.id = BehaviorActionId::EmotionCurious;
-      action.priority = 39;
+      action.priority = static_cast<uint8_t>(39 + personaPriorityBoost);
       action.expression = ExpressionType::Curiosity;
       action.facePriority = EyeAnimPriority::Emotion;
-      action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS + 120;
+      action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS + 120 + personaHoldBoost;
       action.motion = context_.nextCuriousLeft ? MotionCommand::CuriousLeft : MotionCommand::CuriousRight;
       action.enableIdleSway = true;
       return action;
@@ -226,10 +245,10 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEmotion(unsigned long
 
     case MoodProfile::Social:
       action.id = BehaviorActionId::EmotionPositive;
-      action.priority = 38;
+      action.priority = static_cast<uint8_t>(38 + personaPriorityBoost);
       action.expression = ExpressionType::FaceRecognized;
       action.facePriority = EyeAnimPriority::Emotion;
-      action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS + 120;
+      action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS + 120 + personaHoldBoost;
       action.motion = MotionCommand::IdleSway;
       action.enableIdleSway = true;
       return action;
@@ -239,7 +258,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEmotion(unsigned long
       action.priority = 31;
       action.expression = ExpressionType::Neutral;
       action.facePriority = EyeAnimPriority::Idle;
-      action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS + 100;
+      action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS + 100 + (personaHoldBoost / 2);
       action.motion = MotionCommand::SoftListen;
       action.enableIdleSway = true;
       return action;
@@ -309,12 +328,28 @@ BehaviorService::BehaviorAction BehaviorService::actionFromAutonomy(unsigned lon
   BehaviorAction action;
   const EmotionState& emo = emotionProvider_.getEmotionState();
   const unsigned long idleForMs = nowMs - context_.lastInteractionMs;
+  const uint8_t personaPriorityBoost = static_cast<uint8_t>(personaInitiative_ * 3.0f);
+  const unsigned long personaHoldBoost = static_cast<unsigned long>(personaIntensity_ * 120.0f);
+
+  const float cooldownScale = MathUtils::clamp(
+      1.30f - (socialResponsiveness_ * 0.55f) + (socialPauseFactor_ * 0.45f),
+      0.55f,
+      1.80f);
+  const unsigned long dynamicCooldownMs = static_cast<unsigned long>(
+      static_cast<float>(HardwareConfig::Behavior::AUTONOMY_ACTION_COOLDOWN_MS) * cooldownScale);
+
+  const float socialIntervalScale = MathUtils::clamp(
+      1.35f - (socialInitiative_ * 0.55f) - (socialPersistence_ * 0.25f) + (socialPauseFactor_ * 0.35f),
+      0.45f,
+      1.90f);
+  const unsigned long socialIntervalMs = static_cast<unsigned long>(
+      static_cast<float>(HardwareConfig::Behavior::SOCIAL_INITIATIVE_INTERVAL_MS) * socialIntervalScale);
 
   if (idleForMs < HardwareConfig::Behavior::AUTONOMY_MIN_IDLE_MS) {
     return action;
   }
 
-  if (nowMs - context_.lastAutonomyActionMs < HardwareConfig::Behavior::AUTONOMY_ACTION_COOLDOWN_MS) {
+  if (nowMs - context_.lastAutonomyActionMs < dynamicCooldownMs) {
     return action;
   }
 
@@ -333,13 +368,24 @@ BehaviorService::BehaviorAction BehaviorService::actionFromAutonomy(unsigned lon
     return action;
   }
 
+  const float socialBondMin = MathUtils::clamp(
+      HardwareConfig::Behavior::SOCIAL_INITIATIVE_BOND_MIN -
+          (personaSociability_ * 0.12f) - (socialInitiative_ * 0.10f),
+      0.14f,
+      0.60f);
+
+  const float socialAttentionMin = MathUtils::clamp(
+      HardwareConfig::Behavior::SOCIAL_INITIATIVE_ATTENTION_MIN - (socialResponsiveness_ * 0.20f),
+      0.28f,
+      0.80f);
+
   if (moodProfile_ == MoodProfile::Social &&
-      affinityBond_ >= (HardwareConfig::Behavior::SOCIAL_INITIATIVE_BOND_MIN - 0.10f)) {
+      affinityBond_ >= socialBondMin) {
     action.id = BehaviorActionId::SocialCheckIn;
     action.priority = 48;
     action.expression = ExpressionType::FaceRecognized;
     action.facePriority = EyeAnimPriority::Social;
-    action.faceHoldMs = HardwareConfig::Behavior::TOUCH_FACE_HOLD_MS + 120;
+    action.faceHoldMs = HardwareConfig::Behavior::TOUCH_FACE_HOLD_MS + 120 + personaHoldBoost;
     action.motion = (preferredFocus_ == AttentionFocus::Voice)
                         ? MotionCommand::SoftListen
                         : ((context_.autonomyTicks % 2 == 0) ? MotionCommand::CuriousLeft : MotionCommand::CuriousRight);
@@ -350,7 +396,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromAutonomy(unsigned lon
   if (routineState_ == RoutineState::Sleepy || routineState_ == RoutineState::Rest ||
       idleForMs >= HardwareConfig::Behavior::AUTONOMY_BORED_IDLE_MS) {
     action.id = BehaviorActionId::IdleObserve;
-    action.priority = 38;
+    action.priority = static_cast<uint8_t>(38 + personaPriorityBoost);
     action.expression = (routineState_ == RoutineState::Bored) ? ExpressionType::Sad : ExpressionType::BatteryAlert;
     action.facePriority = EyeAnimPriority::Idle;
     action.faceHoldMs = HardwareConfig::Behavior::EMOTION_FACE_HOLD_MS + 220;
@@ -359,11 +405,11 @@ BehaviorService::BehaviorAction BehaviorService::actionFromAutonomy(unsigned lon
     return action;
   }
 
-  if (emo.attention >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_ATTENTION_MIN &&
-      affinityBond_ >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_BOND_MIN &&
-      nowMs - context_.lastSocialInitiativeMs >= HardwareConfig::Behavior::SOCIAL_INITIATIVE_INTERVAL_MS) {
+  if (emo.attention >= socialAttentionMin &&
+      affinityBond_ >= socialBondMin &&
+      nowMs - context_.lastSocialInitiativeMs >= socialIntervalMs) {
     action.id = BehaviorActionId::SocialCheckIn;
-    action.priority = 46;
+    action.priority = static_cast<uint8_t>(46 + personaPriorityBoost);
     action.expression = ExpressionType::FaceRecognized;
     action.facePriority = EyeAnimPriority::Social;
     action.faceHoldMs = HardwareConfig::Behavior::TOUCH_FACE_HOLD_MS;
@@ -544,4 +590,16 @@ void BehaviorService::publishActionEvent(BehaviorActionId actionId, unsigned lon
   event.timestamp = nowMs;
   eventBus_.publish(event);
 }
+
+
+
+
+
+
+
+
+
+
+
+
 

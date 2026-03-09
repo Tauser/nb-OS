@@ -24,4 +24,6 @@ private:
   unsigned long lastInteractionMs_ = 0;
   unsigned long lastInternalPulseMs_ = 0;
   unsigned long lastScanAttemptMs_ = 0;
+  float engagement_ = 0.0f;
 };
+

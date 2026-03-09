@@ -49,6 +49,7 @@
 #include "../services/safe_mode/safe_mode_service.h"
 #include "../services/self_test/self_test_service.h"
 #include "../services/sensor/sensor_service.h"
+#include "../services/social_timing/social_timing_service.h"
 #include "../services/sim_test/sim_test_input_service.h"
 #include "../services/vision/vision_service.h"
 #include "../services/voice/voice_service.h"
@@ -102,6 +103,7 @@ EngagementService g_engagementService(g_eventBus);
 MemoryService g_memoryService(g_eventBus, g_storageManager);
 MoodService g_moodService(g_eventBus, g_emotionService);
 PersonaService g_personaService(g_eventBus);
+SocialTimingService g_socialTimingService(g_eventBus, g_personaService);
 
 SafeModeService g_safeModeService(g_eventBus, g_diagnostics, g_motionService);
 SelfTestService g_selfTestService(
@@ -116,7 +118,7 @@ OTAService g_otaService(g_eventBus, g_diagnostics, g_storageManager, g_configMan
 
 CloudRouter g_cloudRouter(g_eventBus);
 
-BehaviorService g_behaviorService(g_eventBus, g_emotionService, g_faceService, g_motionService, g_diagnostics);
+BehaviorService g_behaviorService(g_eventBus, g_emotionService, g_personaService, g_socialTimingService, g_faceService, g_motionService, g_diagnostics);
 InteractionService g_interactionService(g_eventBus, g_diagnostics);
 
 #if NCOS_SIM_MODE
@@ -137,7 +139,6 @@ SystemManager g_systemManager(
 void AppFactory::init() {
   g_interactionService.init();
   g_emotionService.init();
-  g_behaviorService.init();
   g_voiceService.init();
   g_powerService.init();
 
@@ -153,6 +154,8 @@ void AppFactory::init() {
   g_memoryService.init();
   g_moodService.init();
   g_personaService.init();
+  g_socialTimingService.init();
+  g_behaviorService.init();
 
   g_safeModeService.init();
   g_selfTestService.init();
@@ -173,7 +176,6 @@ void AppFactory::update() {
   g_systemManager.update();
   g_interactionService.update();
   g_emotionService.update(now);
-  g_behaviorService.update(now);
   g_voiceService.update(now);
 
   g_attentionService.update(now);
@@ -188,6 +190,8 @@ void AppFactory::update() {
   g_memoryService.update(now);
   g_moodService.update(now);
   g_personaService.update(now);
+  g_socialTimingService.update(now);
+  g_behaviorService.update(now);
 
   g_selfTestService.update(now);
   g_safeModeService.update(now);
@@ -199,6 +203,10 @@ void AppFactory::update() {
   g_simTestInputService.update(now);
 #endif
 }
+
+
+
+
 
 
 

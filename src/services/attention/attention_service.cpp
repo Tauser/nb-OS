@@ -9,6 +9,7 @@ AttentionService::AttentionService(EventBus& eventBus)
 
 void AttentionService::init() {
   eventBus_.subscribe(EventType::Any, this);
+  eventBus_.subscribe(EventType::EVT_ENGAGEMENT_CHANGED, this);
 
   const unsigned long nowMs = millis();
   focus_ = AttentionFocus::Idle;
@@ -20,6 +21,10 @@ void AttentionService::init() {
 }
 
 void AttentionService::update(unsigned long nowMs) {
+  const float engagementScale = 0.85f + (engagement_ * 0.45f);
+  const unsigned long dynamicHoldMs = static_cast<unsigned long>(
+      static_cast<float>(HardwareConfig::Polish::ATTENTION_HOLD_MS) * engagementScale);
+
   if (focus_ != AttentionFocus::Idle && nowMs >= focusUntilMs_) {
     setFocus(AttentionFocus::Idle, nowMs, HardwareConfig::Polish::ATTENTION_IDLE_RETURN_MS);
     return;
@@ -33,14 +38,14 @@ void AttentionService::update(unsigned long nowMs) {
   if (nowMs - lastScanAttemptMs_ >= HardwareConfig::Polish::ATTENTION_SCAN_INTERVAL_MS) {
     lastScanAttemptMs_ = nowMs;
     lastInternalPulseMs_ = nowMs;
-    setFocus(AttentionFocus::Internal, nowMs, HardwareConfig::Polish::ATTENTION_INTERNAL_PULSE_MS);
+    setFocus(AttentionFocus::Internal, nowMs, HardwareConfig::Polish::ATTENTION_INTERNAL_PULSE_MS + static_cast<unsigned long>((1.0f - engagement_) * 280.0f));
     return;
   }
 
   if (focus_ == AttentionFocus::Idle &&
       nowMs - lastInternalPulseMs_ >= HardwareConfig::Polish::ATTENTION_INTERNAL_PULSE_MS) {
     lastInternalPulseMs_ = nowMs;
-    setFocus(AttentionFocus::Internal, nowMs, HardwareConfig::Polish::ATTENTION_HOLD_MS);
+    setFocus(AttentionFocus::Internal, nowMs, dynamicHoldMs);
   }
 }
 
@@ -52,31 +57,38 @@ void AttentionService::onEvent(const Event& event) {
   }
 
   const unsigned long nowMs = (event.timestamp > 0) ? event.timestamp : millis();
+  const float engagementScale = 0.85f + (engagement_ * 0.45f);
+  const unsigned long dynamicHoldMs = static_cast<unsigned long>(
+      static_cast<float>(HardwareConfig::Polish::ATTENTION_HOLD_MS) * engagementScale);
 
   switch (event.type) {
     case EventType::EVT_TOUCH:
       lastInteractionMs_ = nowMs;
-      setFocus(AttentionFocus::Touch, nowMs, HardwareConfig::Polish::ATTENTION_HOLD_MS);
+      setFocus(AttentionFocus::Touch, nowMs, dynamicHoldMs);
       break;
 
     case EventType::EVT_VOICE_START:
     case EventType::EVT_VOICE_ACTIVITY:
     case EventType::EVT_INTENT_DETECTED:
       lastInteractionMs_ = nowMs;
-      setFocus(AttentionFocus::Voice, nowMs, HardwareConfig::Polish::ATTENTION_HOLD_MS);
+      setFocus(AttentionFocus::Voice, nowMs, dynamicHoldMs);
       break;
 
     case EventType::EVT_VISION_MOTION:
     case EventType::EVT_VISION_DARK:
-      setFocus(AttentionFocus::Vision, nowMs, HardwareConfig::Polish::ATTENTION_HOLD_MS);
+      setFocus(AttentionFocus::Vision, nowMs, dynamicHoldMs);
       break;
 
     case EventType::EVT_POWER_MODE_CHANGED:
-      setFocus(AttentionFocus::Power, nowMs, HardwareConfig::Polish::ATTENTION_HOLD_MS);
+      setFocus(AttentionFocus::Power, nowMs, dynamicHoldMs);
       break;
 
     case EventType::EVT_BEHAVIOR_ACTION:
-      setFocus(AttentionFocus::Internal, nowMs, HardwareConfig::Polish::ATTENTION_HOLD_MS);
+      setFocus(AttentionFocus::Internal, nowMs, dynamicHoldMs);
+      break;
+
+    case EventType::EVT_ENGAGEMENT_CHANGED:
+      engagement_ = static_cast<float>(event.value) / 1000.0f;
       break;
 
     case EventType::EVT_IDLE:
@@ -113,3 +125,5 @@ void AttentionService::publishFocus(AttentionFocus focus, unsigned long nowMs) {
   event.timestamp = nowMs;
   eventBus_.publish(event);
 }
+
+
