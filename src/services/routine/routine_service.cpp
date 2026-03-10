@@ -76,6 +76,13 @@ void RoutineService::update(unsigned long nowMs) {
     return;
   }
 
+  // Keep sleepy ownership stable to avoid face ping-pong with other idle services.
+  if (state_ == RoutineState::Sleepy) {
+    faceController_.requestExpression(ExpressionType::BatteryAlert, EyeAnimPriority::Critical, 1800);
+    motion_.softListen();
+    return;
+  }
+
   updateIdleAutonomy(nowMs);
 }
 
@@ -100,23 +107,27 @@ void RoutineService::onEvent(const Event& event) {
       break;
 
     case EventType::EVT_POWER_MODE_CHANGED: {
-      const PowerMode mode = static_cast<PowerMode>(event.value);
-      if (mode == PowerMode::Sleep) {
+      powerMode_ = static_cast<PowerMode>(event.value);
+      if (powerMode_ == PowerMode::Charging) {
+        setState(RoutineState::Charging, nowMs);
+        faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Critical, 1400);
+        motion_.center();
+      } else if (powerMode_ == PowerMode::Sleep) {
         setState(RoutineState::Rest, nowMs);
         faceController_.requestExpression(ExpressionType::BatteryAlert, EyeAnimPriority::Critical, 1400);
         motion_.center();
-      } else if (state_ == RoutineState::Rest) {
+      } else if (state_ == RoutineState::Charging || state_ == RoutineState::Rest) {
         setState(RoutineState::Resume, nowMs);
       }
       break;
     }
 
     case EventType::EVT_CHARGING_STATE_CHANGED:
-      if (event.value != 0) {
+      if (event.value != 0 && powerMode_ == PowerMode::Charging) {
         setState(RoutineState::Charging, nowMs);
         faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Critical, 1400);
         motion_.center();
-      } else {
+      } else if (event.value == 0 && state_ == RoutineState::Charging) {
         setState(RoutineState::Resume, nowMs);
       }
       break;
@@ -166,8 +177,19 @@ void RoutineService::updateIdleAutonomy(unsigned long nowMs) {
   if (idleForMs >= HardwareConfig::Polish::IDLE_ATTENTION_RECOVERY_AFTER_MS &&
       nowMs - lastAttentionRecoveryMs_ >= HardwareConfig::Polish::IDLE_ATTENTION_RECOVERY_INTERVAL_MS) {
     lastAttentionRecoveryMs_ = nowMs;
-    const ExpressionType recoveryExpr = (idleStage_ == IdleAutonomyStage::Sleepy || idleStage_ == IdleAutonomyStage::Bored) ? ExpressionType::Curiosity : ExpressionType::FaceRecognized;
-    faceController_.requestExpression(recoveryExpr, EyeAnimPriority::Social, 520);
+    ExpressionType recoveryExpr = ExpressionType::FaceRecognized;
+    EyeAnimPriority recoveryPriority = EyeAnimPriority::Social;
+    unsigned long recoveryHoldMs = 520;
+    if (idleStage_ == IdleAutonomyStage::Sleepy) {
+      recoveryExpr = ExpressionType::BatteryAlert;
+      recoveryPriority = EyeAnimPriority::Idle;
+      recoveryHoldMs = 760;
+    } else if (idleStage_ == IdleAutonomyStage::Bored) {
+      recoveryExpr = ExpressionType::Sad;
+      recoveryPriority = EyeAnimPriority::Idle;
+      recoveryHoldMs = 760;
+    }
+    faceController_.requestExpression(recoveryExpr, recoveryPriority, recoveryHoldMs);
     if (nextLeft_) {
       motion_.yawLeft();
     } else {
@@ -176,7 +198,7 @@ void RoutineService::updateIdleAutonomy(unsigned long nowMs) {
     nextLeft_ = !nextLeft_;
   }
 
-  if (!stageChanged && nowMs - lastAutonomyStepMs_ < HardwareConfig::Polish::IDLE_AUTONOMY_STEP_MS) {
+  if (!stageChanged) {
     return;
   }
 
@@ -191,7 +213,9 @@ RoutineService::IdleAutonomyStage RoutineService::stageForIdle(unsigned long idl
     return IdleAutonomyStage::Bored;
   }
 
-  if (idleForMs >= HardwareConfig::Polish::IDLE_SLEEPY_MS || emo.energy <= HardwareConfig::Homeostasis::ROUTINE_SLEEPY_ENERGY_MAX) {
+  const bool allowSleepyByEnergy = (idleForMs >= HardwareConfig::Polish::POST_INTERACTION_AWAKE_MIN_MS);
+  if (idleForMs >= HardwareConfig::Polish::IDLE_SLEEPY_MS ||
+      (allowSleepyByEnergy && emo.energy <= HardwareConfig::Homeostasis::ROUTINE_SLEEPY_ENERGY_MAX)) {
     return IdleAutonomyStage::Sleepy;
   }
 
@@ -234,7 +258,7 @@ void RoutineService::applyStage(IdleAutonomyStage stage, unsigned long nowMs, bo
 
     case IdleAutonomyStage::Sleepy:
       setState(RoutineState::Sleepy, nowMs);
-      faceController_.requestExpression(ExpressionType::BatteryAlert, EyeAnimPriority::Idle, stageChanged ? 1280 : 920);
+      faceController_.requestExpression(ExpressionType::BatteryAlert, EyeAnimPriority::Critical, stageChanged ? 1900 : 1500);
       motion_.softListen();
       break;
 
@@ -260,6 +284,16 @@ void RoutineService::markInteraction(unsigned long nowMs) {
   lastAttentionRecoveryMs_ = nowMs;
   idleStage_ = IdleAutonomyStage::Attentive;
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

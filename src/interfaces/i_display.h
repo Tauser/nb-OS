@@ -16,8 +16,12 @@ public:
                        float tiltDeg,
                        float squashY,
                        float stretchX,
+                       float roundness,
                        float upperLid,
                        float lowerLid) = 0;
   virtual void drawPupil(int x, int y, int radius) = 0;
   virtual void drawText(int x, int y, const char* text) = 0;
 };
+
+
+

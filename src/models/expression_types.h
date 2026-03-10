@@ -9,6 +9,10 @@ enum class ExpressionType : uint8_t {
   BatteryAlert,
   Angry,
   Sad,
+  Surprised,
+  Shy,
+  Listening,
+  Thinking,
   Blink
 };
 

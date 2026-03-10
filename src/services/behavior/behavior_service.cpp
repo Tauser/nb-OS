@@ -34,7 +34,9 @@ void BehaviorService::init() {
   eventBus_.subscribe(EventType::EVT_TILT, this);
   eventBus_.subscribe(EventType::EVT_FALL, this);
   eventBus_.subscribe(EventType::EVT_IDLE, this);
+  eventBus_.subscribe(EventType::EVT_VOICE_START, this);
   eventBus_.subscribe(EventType::EVT_VOICE_ACTIVITY, this);
+  eventBus_.subscribe(EventType::EVT_VOICE_END, this);
   eventBus_.subscribe(EventType::EVT_EMOTION_CHANGED, this);
   eventBus_.subscribe(EventType::EVT_INTENT_DETECTED, this);
   eventBus_.subscribe(EventType::EVT_MOOD_CHANGED, this);
@@ -43,6 +45,8 @@ void BehaviorService::init() {
   eventBus_.subscribe(EventType::EVT_PREFERENCE_UPDATED, this);
   eventBus_.subscribe(EventType::EVT_PERSONA_UPDATED, this);
   eventBus_.subscribe(EventType::EVT_ROUTINE_STATE_CHANGED, this);
+  eventBus_.subscribe(EventType::EVT_POWER_STATUS, this);
+  eventBus_.subscribe(EventType::EVT_CHARGING_STATE_CHANGED, this);
 
   const unsigned long nowMs = millis();
   context_.lastInteractionMs = nowMs;
@@ -121,6 +125,7 @@ void BehaviorService::onEvent(const Event& event) {
       event.type == EventType::EVT_TILT ||
       event.type == EventType::EVT_SHAKE ||
       event.type == EventType::EVT_FALL ||
+      event.type == EventType::EVT_VOICE_START ||
       event.type == EventType::EVT_VOICE_ACTIVITY ||
       event.type == EventType::EVT_INTENT_DETECTED) {
     context_.lastInteractionMs = nowMs;
@@ -157,7 +162,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEvent(const Event& ev
     case EventType::EVT_TILT:
       action.id = BehaviorActionId::TiltObserve;
       action.priority = 60;
-      action.expression = ExpressionType::Curiosity;
+      action.expression = (moodProfile_ == MoodProfile::Reserved || moodProfile_ == MoodProfile::Sensitive) ? ExpressionType::Shy : ExpressionType::Curiosity;
       action.facePriority = EyeAnimPriority::Social;
       action.faceHoldMs = HardwareConfig::Behavior::TILT_FACE_HOLD_MS;
       action.motion = MotionCommand::SoftListen;
@@ -167,7 +172,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEvent(const Event& ev
     case EventType::EVT_SHAKE:
       action.id = BehaviorActionId::ShakeRecover;
       action.priority = 85;
-      action.expression = ExpressionType::Angry;
+      action.expression = ExpressionType::Surprised;
       action.facePriority = EyeAnimPriority::Alert;
       action.faceHoldMs = HardwareConfig::Behavior::SHAKE_FACE_HOLD_MS;
       action.motion = MotionCommand::Center;
@@ -177,17 +182,18 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEvent(const Event& ev
     case EventType::EVT_FALL:
       action.id = BehaviorActionId::FallRecover;
       action.priority = 100;
-      action.expression = ExpressionType::BatteryAlert;
+      action.expression = ExpressionType::Surprised;
       action.facePriority = EyeAnimPriority::Critical;
       action.faceHoldMs = HardwareConfig::Behavior::FALL_FACE_HOLD_MS;
       action.motion = MotionCommand::Center;
       action.enableIdleSway = true;
       break;
 
+    case EventType::EVT_VOICE_START:
     case EventType::EVT_VOICE_ACTIVITY:
       action.id = BehaviorActionId::VoiceAttend;
       action.priority = 65;
-      action.expression = ExpressionType::FaceRecognized;
+      action.expression = ExpressionType::Listening;
       action.facePriority = EyeAnimPriority::Social;
       action.faceHoldMs = HardwareConfig::Behavior::TILT_FACE_HOLD_MS;
       action.motion = MotionCommand::SoftListen;
@@ -204,7 +210,8 @@ BehaviorService::BehaviorAction BehaviorService::actionFromEvent(const Event& ev
 BehaviorService::BehaviorAction BehaviorService::actionFromEmotion(unsigned long nowMs) {
   if (routineState_ == RoutineState::Charging ||
       routineState_ == RoutineState::Rest ||
-      routineState_ == RoutineState::Listening) {
+      routineState_ == RoutineState::Listening ||
+      routineState_ == RoutineState::Sleepy) {
     return BehaviorAction{};
   }
 
@@ -353,7 +360,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromAutonomy(unsigned lon
     return action;
   }
 
-  if (routineState_ == RoutineState::Listening || routineState_ == RoutineState::Charging) {
+  if (routineState_ == RoutineState::Listening || routineState_ == RoutineState::Charging || routineState_ == RoutineState::Sleepy) {
     return action;
   }
 
@@ -462,10 +469,10 @@ BehaviorService::BehaviorAction BehaviorService::actionFromIntent(LocalIntent in
     case LocalIntent::Status:
       action.id = BehaviorActionId::IntentStatus;
       action.priority = 78;
-      action.expression = ExpressionType::Curiosity;
+      action.expression = ExpressionType::Thinking;
       action.facePriority = EyeAnimPriority::Social;
-      action.faceHoldMs = HardwareConfig::Behavior::TILT_FACE_HOLD_MS;
-      action.motion = MotionCommand::Center;
+      action.faceHoldMs = HardwareConfig::Behavior::TILT_FACE_HOLD_MS + 220;
+      action.motion = MotionCommand::SoftListen;
       action.enableIdleSway = true;
       break;
 
@@ -474,7 +481,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromIntent(LocalIntent in
       action.priority = 82;
       action.expression = ExpressionType::Sad;
       action.facePriority = EyeAnimPriority::Alert;
-      action.faceHoldMs = HardwareConfig::Behavior::SHAKE_FACE_HOLD_MS;
+      action.faceHoldMs = HardwareConfig::Behavior::SHAKE_FACE_HOLD_MS + 300;
       action.motion = MotionCommand::SoftListen;
       action.enableIdleSway = false;
       break;
@@ -484,7 +491,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromIntent(LocalIntent in
       action.priority = 84;
       action.expression = ExpressionType::FaceRecognized;
       action.facePriority = EyeAnimPriority::Alert;
-      action.faceHoldMs = HardwareConfig::Behavior::SHAKE_FACE_HOLD_MS;
+      action.faceHoldMs = HardwareConfig::Behavior::SHAKE_FACE_HOLD_MS + 260;
       action.motion = MotionCommand::Center;
       action.enableIdleSway = true;
       break;
@@ -513,6 +520,11 @@ bool BehaviorService::tryApplyAction(const BehaviorAction& action, unsigned long
 
   if (nowMs - context_.lastActionMs < HardwareConfig::Behavior::ACTION_MIN_INTERVAL_MS &&
       action.priority <= activePriority_) {
+    return false;
+  }
+
+  if (action.id == lastActionId_ &&
+      nowMs - context_.lastActionMs < HardwareConfig::Behavior::REPEAT_SUPPRESS_MS) {
     return false;
   }
 
@@ -546,6 +558,7 @@ bool BehaviorService::tryApplyAction(const BehaviorAction& action, unsigned long
   activePriority_ = action.priority;
   activeUntilMs_ = nowMs + action.faceHoldMs;
   context_.lastActionMs = nowMs;
+  lastActionId_ = action.id;
 
   publishActionEvent(action.id, nowMs);
   #if !NCOS_SIM_MODE
@@ -590,6 +603,13 @@ void BehaviorService::publishActionEvent(BehaviorActionId actionId, unsigned lon
   event.timestamp = nowMs;
   eventBus_.publish(event);
 }
+
+
+
+
+
+
+
 
 
 

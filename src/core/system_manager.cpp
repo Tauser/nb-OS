@@ -134,6 +134,14 @@ void SystemManager::update() {
     heartbeatInterval = scaledInterval(heartbeatInterval, HardwareConfig::Recovery::SAFE_MODE_HEARTBEAT_INTERVAL_SCALE);
   }
 
+  // Keep heartbeat cadence safely below health timeout across all mode scales.
+  const unsigned long heartbeatMaxInterval = (HardwareConfig::Health::HEARTBEAT_TIMEOUT_MS > 2UL)
+                                                 ? (HardwareConfig::Health::HEARTBEAT_TIMEOUT_MS / 2UL)
+                                                 : 1UL;
+  if (heartbeatInterval > heartbeatMaxInterval) {
+    heartbeatInterval = heartbeatMaxInterval;
+  }
+
   if (FeatureFlags::DISPLAY_ENABLED) {
     if (lastFrameMs_ == 0) {
       lastFrameMs_ = now;

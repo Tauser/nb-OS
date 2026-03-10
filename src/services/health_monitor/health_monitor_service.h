@@ -26,6 +26,7 @@ private:
   HealthSnapshot snapshot_{};
 
   unsigned long lastHeartbeatMs_ = 0;
+  unsigned long lastActivityMs_ = 0;
   unsigned long lastWindowMs_ = 0;
   unsigned long lastStatusPublishMs_ = 0;
   unsigned long lastAnomalyPublishMs_ = 0;

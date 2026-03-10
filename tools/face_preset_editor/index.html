@@ -1,0 +1,2450 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Face Preset Editor</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --ink: #222426;
+      --muted: #636c72;
+      --line: #d8d1c5;
+      --accent: #dd6f29;
+      --accent-soft: #f6d6bf;
+      --preview-bg: #0d1012;
+      --eye: #8dc5ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 12%, #fff6e8 0%, transparent 28%),
+        radial-gradient(circle at 90% 18%, #e6f7ff 0%, transparent 26%),
+        var(--bg);
+    }
+
+    .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: minmax(320px, 460px) 1fr;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 6px 28px rgba(35, 24, 8, 0.08);
+    }
+
+    .left {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      align-self: start;
+      position: sticky;
+      top: 12px;
+      max-height: calc(100vh - 24px);
+      overflow: auto;
+    }
+
+    .right {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+      align-self: start;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      margin: 2px 0 0;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .workspace-bar {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip-btn {
+      border: 1px solid var(--line);
+      background: #fff8ef;
+      color: #4a4037;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font: inherit;
+      font-weight: 700;
+    }
+
+    .chip-btn.is-active {
+      background: var(--accent);
+      color: #fff;
+      border-color: #c9611f;
+      box-shadow: 0 4px 16px rgba(201, 97, 31, 0.24);
+    }
+
+    .workspace-meta {
+      display: grid;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(180deg, #fff8ef, #fffdf8);
+    }
+
+    .workspace-meta strong {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #5c4c40;
+    }
+
+    .workspace-meta code {
+      font-size: 0.82rem;
+    }
+
+    .inspector {
+      display: grid;
+      gap: 10px;
+    }
+
+    .inspector-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .inspector-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b6258;
+    }
+
+    .wide-textarea {
+      min-height: 128px;
+    }
+
+    .legacy-editor {
+      display: none;
+    }
+
+    .toolbar select,
+    .toolbar input,
+    .toolbar button,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 0.08s ease, filter 0.2s ease;
+    }
+
+    button:hover { filter: brightness(0.97); }
+    button:active { transform: translateY(1px); }
+
+    .btn-accent {
+      background: var(--accent);
+      color: #fff;
+      border-color: #c9611f;
+    }
+
+    .section {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: #fff;
+    }
+
+    .section h2 {
+      margin: 0 0 8px;
+      font-size: 0.86rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #4a4f54;
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: 1fr 80px;
+      gap: 8px;
+      align-items: center;
+      margin: 8px 0;
+    }
+
+    .control label {
+      font-size: 0.83rem;
+      color: #394046;
+      display: grid;
+      gap: 6px;
+    }
+
+    .control input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .num {
+      font-family: "Consolas", "Courier New", monospace;
+      text-align: right;
+      font-size: 0.82rem;
+      color: #333;
+      background: #faf8f2;
+      border-radius: 8px;
+      padding: 6px;
+      border: 1px solid var(--line);
+    }
+
+    .preview {
+      border: 1px solid #2b3136;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #12161a, #0a0d0f);
+      padding: 12px;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      background: var(--preview-bg);
+      display: block;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .row select,
+    .row input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .toggle {
+      display: grid;
+      grid-template-columns: 16px 1fr;
+      gap: 8px;
+      align-items: center;
+      font-size: 0.84rem;
+      color: #394046;
+      margin: 8px 0;
+    }
+
+    .section-disabled {
+      opacity: 0.55;
+    }
+
+    .section-disabled .control input,
+    .section-disabled button {
+      pointer-events: none;
+    }
+
+    textarea {
+      min-height: 88px;
+      font-family: "Consolas", "Courier New", monospace;
+      background: #fff;
+      resize: vertical;
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+      .left { position: static; max-height: none; }
+      .workspace-bar { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="panel left">
+      <div>
+        <h1>Face Preset Editor</h1>
+        <p class="subtitle">Editor offline para gerar linha <code>makePreset(...)</code></p>
+      </div>
+
+      <div class="toolbar">
+        <select id="presetId"></select>
+        <input id="presetName" placeholder="nome preset" value="neutral" />
+      </div>
+
+      <div class="row">
+        <button id="loadTemplate">Carregar Template</button>
+        <button id="resetValues">Resetar Atual</button>
+      </div>
+
+      <div class="section">
+        <h2>Importar makePreset</h2>
+        <textarea id="importLine" placeholder='Cole aqui: makePreset(FacePresetId::Neutral, "neutral", ... )'></textarea>
+        <div class="row">
+          <button id="applyImport">Aplicar Linha</button>
+          <button id="clearImport">Limpar</button>
+        </div>
+      </div>
+
+      <div class="section" id="secGeometry">
+        <h2>Geometria</h2>
+      </div>
+
+      <div class="section" id="secShape">
+        <h2>Shape</h2>
+        <div class="row">
+          <select id="shapeMode">
+            <option value="rounded_rect">rounded_rect</option>
+            <option value="wedge">wedge</option>
+            <option value="custom_path">custom_path</option>
+          </select>
+          <div class="num" id="shapeModeInfo">global</div>
+        </div>
+      </div>
+
+      <div class="section" id="secLids">
+        <h2>Pálpebras e Abertura</h2>
+      </div>
+
+      <div class="section" id="secBlink">
+        <h2>Blink</h2>
+      </div>
+
+      <div class="section" id="secTransition">
+        <h2>Transição</h2>
+      </div>
+
+      <div class="section" id="secPerEyeMode">
+        <h2>Per-Eye Override</h2>
+        <label class="toggle"><input type="checkbox" id="perEyeEnabled" />Usar diferenca por olho</label>
+        <label class="toggle"><input type="checkbox" id="lockEyes" checked />Lock L/R</label>
+        <div class="row">
+          <select id="leftShapeMode">
+            <option value="inherit">left: inherit</option>
+            <option value="rounded_rect">left: rounded_rect</option>
+            <option value="wedge">left: wedge</option>
+            <option value="custom_path">left: custom_path</option>
+          </select>
+          <select id="rightShapeMode">
+            <option value="inherit">right: inherit</option>
+            <option value="rounded_rect">right: rounded_rect</option>
+            <option value="wedge">right: wedge</option>
+            <option value="custom_path">right: custom_path</option>
+          </select>
+        </div>
+        <div class="row">
+          <button id="winkLeft">Wink Left</button>
+          <button id="winkRight">Wink Right</button>
+        </div>
+        <p class="hint">`makePreset(...)` continua simetrico; overrides por olho saem no JSON.</p>
+      </div>
+
+      <div class="section" id="secLeftEyeDeltas">
+        <h2>Olho Esquerdo (Delta)</h2>
+      </div>
+
+      <div class="section" id="secRightEyeDeltas">
+        <h2>Olho Direito (Delta)</h2>
+      </div>
+    </aside>
+
+    <main class="panel right">
+      <div class="preview">
+        <canvas id="preview" width="780" height="420"></canvas>
+      </div>
+
+      <div class="section">
+        <h2>Animacao Preview</h2>
+        <div class="row">
+          <button id="toggleAnim">Pausar Animacao</button>
+          <button id="blinkNow">Blink Now</button>
+        </div>
+        <div class="row">
+          <select id="transitionTarget"></select>
+          <input id="blendMs" type="number" min="80" max="3000" step="10" value="900" />
+        </div>
+        <div class="row">
+          <button id="blendToTarget" class="btn-accent">Blend Para Preset</button>
+          <button id="cancelBlend">Cancelar Blend</button>
+        </div>
+        <p class="hint" id="animInfo">anim=on | blink=idle | blend=idle</p>
+      </div>
+
+      <div class="section">
+        <h2>Edit On Canvas</h2>
+        <label class="toggle"><input type="checkbox" id="canvasEditEnabled" />Editar direto no desenho</label>
+        <div class="row">
+          <select id="canvasEditEye">
+            <option value="left">left</option>
+            <option value="right">right</option>
+            <option value="both">both</option>
+          </select>
+          <select id="canvasEditHandle">
+            <option value="roundness">corner_roundness</option>
+            <option value="innerCant">inner_cant</option>
+            <option value="outerCant">outer_cant</option>
+            <option value="topWidth">top_width</option>
+            <option value="bottomWidth">bottom_width</option>
+            <option value="sizeCorner">size_corner</option>
+            <option value="move">move_offset</option>
+          </select>
+        </div>
+        <div class="row">
+          <label class="toggle"><input type="checkbox" id="snapEnabled" />Snap</label>
+          <input id="snapStep" type="number" min="2" max="64" step="1" value="8" />
+        </div>
+        <p class="hint">Arraste apenas o ponto amarelo ativo (um ponto por vez).</p>
+      </div>
+
+      <div class="section">
+        <h2>Mini Vector Editor</h2>
+        <label class="toggle"><input type="checkbox" id="vectorEditEnabled" />Editar pontos vetoriais</label>
+        <div class="row">
+          <select id="vectorEye">
+            <option value="left">left</option>
+            <option value="right">right</option>
+            <option value="both">both</option>
+          </select>
+          <select id="vectorTool">
+            <option value="move">move_point</option>
+            <option value="select">select_point</option>
+            <option value="add">add_point</option>
+            <option value="remove">remove_point</option>
+          </select>
+        </div>
+        <div class="row">
+          <button id="vectorResetRect">Reset Rect</button>
+          <button id="vectorResetWedge">Reset Wedge</button>
+        </div>
+        <div class="control">
+          <label>selected point roundness
+            <input id="vertexRoundness" type="range" min="0" max="1" step="0.01" value="0.32" />
+          </label>
+          <div class="num" id="vertexRoundnessValue">0.320</div>
+        </div>
+        <p class="hint" id="vectorInfo">vector=off | point=none</p>
+      </div>
+
+      <p class="hint">Dica: para olhos mais quadrados, reduza <code>roundness</code> para 0.22 - 0.34.</p>
+
+      <div class="row">
+        <button id="copyLine" class="btn-accent">Copiar Linha makePreset</button>
+        <button id="copyJson">Copiar JSON</button>
+      </div>
+
+      <textarea id="cppLine" class="wide-textarea" readonly></textarea>
+      <textarea id="jsonDump" class="wide-textarea" readonly></textarea>
+    </main>
+  </div>
+
+  <script>
+    const presetOptions = [
+      ["Neutral", "neutral"],
+      ["Curious", "curious"],
+      ["Sleepy", "sleepy"],
+      ["HappySoft", "happy_soft"],
+      ["Focused", "focused"],
+      ["Shy", "shy"],
+      ["Surprised", "surprised"],
+      ["LowEnergy", "low_energy"],
+      ["Listening", "listening"],
+      ["Thinking", "thinking"]
+    ];
+
+    const defaults = {
+      widthScale: 1.10,
+      heightScale: 1.00,
+      roundness: 0.54,
+      tiltDeg: 0.0,
+      spacingScale: 1.00,
+      shapeMode: "rounded_rect",
+      innerCantDeg: 0.0,
+      outerCantDeg: 0.0,
+      topWidthScale: 1.00,
+      bottomWidthScale: 1.00,
+      upperLid: 0.06,
+      lowerLid: 0.02,
+      baseOpenness: 1.02,
+      blinkMinMs: 3400,
+      blinkMaxMs: 6400,
+      blinkDurationMs: 190,
+      blinkUpperPeak: 0.90,
+      blinkLowerPeak: 0.32,
+      transitionResponseHz: 14.0,
+      transitionAlphaMin: 0.08,
+      transitionAlphaMax: 0.45,
+      transitionBlendMs: 220,
+      transitionHoldMs: 900,
+      transitionSettleMs: 180,
+      transitionBlendCurveExp: 1.00
+    };
+
+    const templates = {
+      neutral: { ...defaults },
+      curious: {
+        ...defaults, widthScale: 1.24, heightScale: 0.96, roundness: 0.48, tiltDeg: 24,
+        spacingScale: 1.04, upperLid: 0.04, lowerLid: 0.01, baseOpenness: 1.03
+      },
+      sleepy: {
+        ...defaults, widthScale: 1.06, heightScale: 0.80, roundness: 0.60, tiltDeg: 0,
+        upperLid: 0.34, lowerLid: 0.16, baseOpenness: 0.86, blinkDurationMs: 260
+      },
+      happy_soft: {
+        ...defaults, widthScale: 1.14, heightScale: 1.08, roundness: 0.56, tiltDeg: 10,
+        upperLid: 0.08, lowerLid: 0.03, baseOpenness: 1.07
+      }
+    };
+
+    const controls = [
+      ["secGeometry", "widthScale", "width", 0.72, 1.65, 0.01],
+      ["secGeometry", "heightScale", "height", 0.48, 1.45, 0.01],
+      ["secGeometry", "roundness", "roundness", 0.18, 0.92, 0.01],
+      ["secGeometry", "tiltDeg", "tiltDeg", -30, 30, 0.1],
+      ["secGeometry", "spacingScale", "spacingScale", 0.84, 1.20, 0.01],
+
+      ["secShape", "innerCantDeg", "innerCantDeg", -35, 35, 0.1],
+      ["secShape", "outerCantDeg", "outerCantDeg", -35, 35, 0.1],
+      ["secShape", "topWidthScale", "topWidthScale", 0.45, 1.45, 0.01],
+      ["secShape", "bottomWidthScale", "bottomWidthScale", 0.45, 1.45, 0.01],
+
+      ["secLids", "upperLid", "upperLid", 0, 0.95, 0.01],
+      ["secLids", "lowerLid", "lowerLid", 0, 0.90, 0.01],
+      ["secLids", "baseOpenness", "baseOpenness", 0.32, 1.20, 0.01],
+
+      ["secBlink", "blinkMinMs", "blinkMinMs", 400, 16000, 10],
+      ["secBlink", "blinkMaxMs", "blinkMaxMs", 600, 24000, 10],
+      ["secBlink", "blinkDurationMs", "blinkDurationMs", 60, 800, 5],
+      ["secBlink", "blinkUpperPeak", "blinkUpperPeak", 0.3, 1.0, 0.01],
+      ["secBlink", "blinkLowerPeak", "blinkLowerPeak", 0.0, 0.8, 0.01],
+
+      ["secTransition", "transitionResponseHz", "transitionResponseHz", 2, 40, 0.1],
+      ["secTransition", "transitionAlphaMin", "transitionAlphaMin", 0.01, 0.5, 0.01],
+      ["secTransition", "transitionAlphaMax", "transitionAlphaMax", 0.05, 0.95, 0.01],
+      ["secTransition", "transitionBlendMs", "transitionBlendMs", 30, 2600, 10],
+      ["secTransition", "transitionHoldMs", "transitionHoldMs", 120, 4000, 10],
+      ["secTransition", "transitionSettleMs", "transitionSettleMs", 60, 3000, 10],
+      ["secTransition", "transitionBlendCurveExp", "transitionBlendCurveExp", 0.5, 2.5, 0.01]
+    ];
+
+    const eyeDeltaDefaults = {
+      widthScaleDelta: 0,
+      heightScaleDelta: 0,
+      roundnessDelta: 0,
+      tiltDegDelta: 0,
+      innerCantDegDelta: 0,
+      outerCantDegDelta: 0,
+      topWidthScaleDelta: 0,
+      bottomWidthScaleDelta: 0,
+      upperLidDelta: 0,
+      lowerLidDelta: 0,
+      opennessDelta: 0,
+      xOffset: 0,
+      yOffset: 0
+    };
+
+    const eyeDeltaControls = [
+      ["widthScaleDelta", "width d", -0.40, 0.40, 0.01],
+      ["heightScaleDelta", "height d", -0.40, 0.40, 0.01],
+      ["roundnessDelta", "round d", -0.35, 0.35, 0.01],
+      ["tiltDegDelta", "tilt d", -20, 20, 0.1],
+      ["innerCantDegDelta", "innerCant d", -25, 25, 0.1],
+      ["outerCantDegDelta", "outerCant d", -25, 25, 0.1],
+      ["topWidthScaleDelta", "topWidth d", -0.40, 0.40, 0.01],
+      ["bottomWidthScaleDelta", "bottomWidth d", -0.40, 0.40, 0.01],
+      ["upperLidDelta", "upperLid d", -0.55, 0.55, 0.01],
+      ["lowerLidDelta", "lowerLid d", -0.55, 0.55, 0.01],
+      ["opennessDelta", "open d", -0.45, 0.45, 0.01],
+      ["xOffset", "xOffset", -80, 80, 1],
+      ["yOffset", "yOffset", -50, 50, 1]
+    ];
+
+    const state = { ...defaults };
+    const perEye = {
+      enabled: false,
+      lock: true,
+      left: { ...eyeDeltaDefaults, shapeModeOverride: "inherit" },
+      right: { ...eyeDeltaDefaults, shapeModeOverride: "inherit" },
+      wink: {
+        leftUntilMs: 0,
+        rightUntilMs: 0
+      }
+    };
+
+    const canvasEdit = {
+      enabled: false,
+      eye: "left",
+      handle: "roundness",
+      dragging: false,
+      dragEye: "left",
+      lastX: 0,
+      lastY: 0,
+      snapEnabled: false,
+      snapStep: 8
+    };
+
+    const lastEyeMetrics = { left: null, right: null };
+    const linkedOffset = { x: 0, y: 0 };
+
+    const vectorEditor = {
+      enabled: true,
+      eye: "both",
+      tool: "move",
+      dragging: false,
+      selectedEye: null,
+      selectedIndex: -1,
+      dragEye: "left",
+      dragKind: null,
+      dragHandle: null,
+      lastX: 0,
+      lastY: 0
+    };
+
+    const customShape = {
+      left: createRectVectorPath(),
+      right: createRectVectorPath()
+    };
+
+    function mountWorkspaceUi() {
+      const canvasSection = document.getElementById("canvasEditEnabled")?.closest(".section");
+      const vectorSection = document.getElementById("vectorEditEnabled")?.closest(".section");
+      if (!canvasSection || !vectorSection) return;
+      canvasSection.classList.add("legacy-editor");
+      vectorSection.classList.add("legacy-editor");
+      if (document.getElementById("editorEnabled")) return;
+
+      const workspace = document.createElement("div");
+      workspace.className = "section";
+      workspace.innerHTML = `
+        <h2>Workspace</h2>
+        <div class="workspace-bar">
+          <div class="stack">
+            <label class="toggle"><input type="checkbox" id="editorEnabled" checked />Edicao profissional no canvas</label>
+            <div class="chip-row" id="editorEyeGroup">
+              <button id="editorEyeLeft" class="chip-btn" type="button">Left</button>
+              <button id="editorEyeRight" class="chip-btn" type="button">Right</button>
+              <button id="editorEyeBoth" class="chip-btn is-active" type="button">Both</button>
+            </div>
+            <div class="chip-row">
+              <button id="mirrorLeftToRight" type="button">Mirror L -> R</button>
+            </div>
+            <div class="workspace-meta">
+              <strong>Canvas Actions</strong>
+              <code>Drag ponto = mover</code>
+              <code>Drag dentro = mover shape</code>
+              <code>Drag alca branca = escalar</code>
+              <code>Double click aresta = adicionar ponto</code>
+              <code>Alt + click ponto = remover</code>
+            </div>
+          </div>
+          <div class="inspector">
+            <div class="inspector-card">
+              <span class="inspector-label">Selection</span>
+              <p class="hint" id="vectorInfo">editor=on | target=both | point=none</p>
+            </div>
+            <div class="inspector-card">
+              <div class="chip-row">
+                <button id="vectorResetRect" type="button">Reset Rect</button>
+                <button id="vectorResetWedge" type="button">Reset Wedge</button>
+              </div>
+              <div class="control">
+                <label>selected point roundness
+                  <input id="vertexRoundness" type="range" min="0" max="1" step="0.01" value="0.32" />
+                </label>
+                <div class="num" id="vertexRoundnessValue">0.320</div>
+              </div>
+              <div class="chip-row">
+                <label class="toggle"><input type="checkbox" id="snapEnabled" />Snap</label>
+                <input id="snapStep" type="number" min="2" max="64" step="1" value="8" />
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      canvasSection.parentNode.insertBefore(workspace, canvasSection);
+    }
+
+    mountWorkspaceUi();
+
+    const presetId = document.getElementById("presetId");
+    const presetName = document.getElementById("presetName");
+    const cppLine = document.getElementById("cppLine");
+    const jsonDump = document.getElementById("jsonDump");
+    const importLine = document.getElementById("importLine");
+    const canvas = document.getElementById("preview");
+    const ctx = canvas.getContext("2d");
+    const toggleAnimBtn = document.getElementById("toggleAnim");
+    const blinkNowBtn = document.getElementById("blinkNow");
+    const transitionTarget = document.getElementById("transitionTarget");
+    const blendMsInput = document.getElementById("blendMs");
+    const blendToTargetBtn = document.getElementById("blendToTarget");
+    const cancelBlendBtn = document.getElementById("cancelBlend");
+    const animInfo = document.getElementById("animInfo");
+    const shapeModeSelect = document.getElementById("shapeMode");
+    const shapeModeInfo = document.getElementById("shapeModeInfo");
+
+    const perEyeEnabledCheck = document.getElementById("perEyeEnabled");
+    const lockEyesCheck = document.getElementById("lockEyes");
+    const leftShapeModeSelect = document.getElementById("leftShapeMode");
+    const rightShapeModeSelect = document.getElementById("rightShapeMode");
+    const winkLeftBtn = document.getElementById("winkLeft");
+    const winkRightBtn = document.getElementById("winkRight");
+    const secLeftEyeDeltas = document.getElementById("secLeftEyeDeltas");
+    const secRightEyeDeltas = document.getElementById("secRightEyeDeltas");
+
+    const canvasEditEnabledCheck = document.getElementById("canvasEditEnabled");
+    const canvasEditEyeSelect = document.getElementById("canvasEditEye");
+    const canvasEditHandleSelect = document.getElementById("canvasEditHandle");
+    const snapEnabledCheck = document.getElementById("snapEnabled");
+    const snapStepInput = document.getElementById("snapStep");
+    const editorEnabledCheck = document.getElementById("editorEnabled");
+    const editorEyeLeftBtn = document.getElementById("editorEyeLeft");
+    const editorEyeRightBtn = document.getElementById("editorEyeRight");
+    const editorEyeBothBtn = document.getElementById("editorEyeBoth");
+    const mirrorLeftToRightBtn = document.getElementById("mirrorLeftToRight");
+    const vectorEditEnabledCheck = document.getElementById("vectorEditEnabled");
+    const vectorEyeSelect = document.getElementById("vectorEye");
+    const vectorToolSelect = document.getElementById("vectorTool");
+    const vectorResetRectBtn = document.getElementById("vectorResetRect");
+    const vectorResetWedgeBtn = document.getElementById("vectorResetWedge");
+    const vertexRoundnessInput = document.getElementById("vertexRoundness");
+    const vertexRoundnessValue = document.getElementById("vertexRoundnessValue");
+    const vectorInfo = document.getElementById("vectorInfo");
+
+    const anim = {
+      enabled: true,
+      rafId: 0,
+      blink: {
+        active: false,
+        startMs: 0,
+        durationMs: 0,
+        nextAtMs: 0,
+        pendingDouble: false,
+        amount: 0
+      },
+      blend: {
+        active: false,
+        startMs: 0,
+        durationMs: 900,
+        from: null,
+        to: null,
+        targetPresetId: null,
+        t: 0
+      }
+    };
+
+    presetOptions.forEach(([id, name]) => {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = id;
+      opt.dataset.name = name;
+      presetId.appendChild(opt);
+
+      const targetOpt = document.createElement("option");
+      targetOpt.value = id;
+      targetOpt.textContent = id;
+      targetOpt.dataset.name = name;
+      transitionTarget.appendChild(targetOpt);
+    });
+
+    function fmt(v) {
+      return Number.isInteger(v) ? String(v) : Number(v).toFixed(3).replace(/\.000$/, ".0");
+    }
+
+    function fmtF(v, decimals = 2) {
+      return Number(v).toFixed(decimals) + "f";
+    }
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function clamp01(v) {
+      return clamp(v, 0, 1);
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function randRange(min, max) {
+      const lo = Math.min(min, max);
+      const hi = Math.max(min, max);
+      return lo + Math.random() * (hi - lo);
+    }
+
+    function clonePoints(points) {
+      return (points || []).map((p) => ({ x: Number(p.x), y: Number(p.y), r: clamp01(Number(p.r)) }));
+    }
+
+    function createRectVectorPath() {
+      return [
+        { x: -0.50, y: -0.50, r: 0.32 },
+        { x: 0.50, y: -0.50, r: 0.32 },
+        { x: 0.50, y: 0.50, r: 0.32 },
+        { x: -0.50, y: 0.50, r: 0.32 }
+      ];
+    }
+
+    function createWedgeVectorPath(side) {
+      const innerLift = 0.11;
+      if (side === "left") {
+        return [
+          { x: -0.46, y: -0.45, r: 0.22 },
+          { x: 0.46, y: -0.55, r: 0.22 },
+          { x: 0.50, y: 0.50, r: 0.12 },
+          { x: -0.50, y: 0.50, r: 0.12 }
+        ];
+      }
+      return [
+        { x: -0.46, y: -0.55, r: 0.22 },
+        { x: 0.46, y: -0.45, r: 0.22 },
+        { x: 0.50, y: 0.50, r: 0.12 },
+        { x: -0.50, y: 0.50, r: 0.12 }
+      ];
+    }
+
+    function getVectorTargets() {
+      return vectorEditor.eye === "both" ? ["left", "right"] : [vectorEditor.eye];
+    }
+
+    function getCustomPoints(eye) {
+      return customShape[eye] || createRectVectorPath();
+    }
+
+    function setCustomPoints(eye, points) {
+      if (eye === "both") {
+        setCustomPoints("left", points);
+        setCustomPoints("right", points);
+        return;
+      }
+      customShape[eye] = clonePoints(points);
+      if (perEye.enabled && perEye.lock) {
+        const other = eye === "left" ? "right" : "left";
+        customShape[other] = clonePoints(points);
+      }
+    }
+
+    function syncVectorInfo() {
+      const pLabel = vectorEditor.selectedEye && vectorEditor.selectedIndex >= 0
+        ? `${vectorEditor.selectedEye}[${vectorEditor.selectedIndex}]`
+        : "none";
+      vectorInfo.textContent = `editor=${vectorEditor.enabled ? "on" : "off"} | target=${vectorEditor.eye} | point=${pLabel}`;
+
+      if (!vectorEditor.selectedEye || vectorEditor.selectedIndex < 0) {
+        vertexRoundnessInput.disabled = true;
+        vertexRoundnessValue.textContent = "n/a";
+        return;
+      }
+
+      const points = getCustomPoints(vectorEditor.selectedEye);
+      const p = points[vectorEditor.selectedIndex];
+      if (!p) {
+        vertexRoundnessInput.disabled = true;
+        vertexRoundnessValue.textContent = "n/a";
+        return;
+      }
+
+      vertexRoundnessInput.disabled = false;
+      vertexRoundnessInput.value = String(clamp01(p.r));
+      vertexRoundnessValue.textContent = fmt(clamp01(p.r));
+    }
+
+    function setEditorTarget(target) {
+      vectorEditor.eye = target;
+      updateEditorEyeButtons();
+      if (vectorEditor.enabled) {
+        ensureCustomPathModeForEye(target);
+      }
+      syncVectorInfo();
+      render();
+    }
+
+    function updateEditorEyeButtons() {
+      editorEyeLeftBtn.classList.toggle("is-active", vectorEditor.eye === "left");
+      editorEyeRightBtn.classList.toggle("is-active", vectorEditor.eye === "right");
+      editorEyeBothBtn.classList.toggle("is-active", vectorEditor.eye === "both");
+    }
+
+    function clearSelectedPoint() {
+      vectorEditor.selectedEye = null;
+      vectorEditor.selectedIndex = -1;
+    }
+
+    function getScaleHandles(metrics) {
+      return [
+        { id: "nw", x: metrics.left, y: metrics.top, sx: -1, sy: -1 },
+        { id: "ne", x: metrics.left + metrics.width, y: metrics.top, sx: 1, sy: -1 },
+        { id: "se", x: metrics.left + metrics.width, y: metrics.top + metrics.height, sx: 1, sy: 1 },
+        { id: "sw", x: metrics.left, y: metrics.top + metrics.height, sx: -1, sy: 1 }
+      ];
+    }
+
+    function hitTestScaleHandle(p, eyes) {
+      let best = null;
+      eyes.forEach((eye) => {
+        const metrics = lastEyeMetrics[eye];
+        if (!metrics) return;
+        getScaleHandles(metrics).forEach((handle) => {
+          const dist = Math.hypot(p.x - handle.x, p.y - handle.y);
+          if (!best || dist < best.dist) {
+            best = { eye, handle, dist };
+          }
+        });
+      });
+      return best && best.dist <= 14 ? best : null;
+    }
+
+    function isPointInsidePolygon(p, polygon) {
+      let inside = false;
+      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x;
+        const yi = polygon[i].y;
+        const xj = polygon[j].x;
+        const yj = polygon[j].y;
+        const intersects = ((yi > p.y) !== (yj > p.y)) &&
+          (p.x < (xj - xi) * (p.y - yi) / Math.max(0.0001, (yj - yi)) + xi);
+        if (intersects) inside = !inside;
+      }
+      return inside;
+    }
+
+    function hitTestShapeInterior(p, eyes) {
+      for (const eye of eyes) {
+        const metrics = lastEyeMetrics[eye];
+        if (!metrics) continue;
+        const polygon = getCustomPoints(eye).map((point) => pointToCanvas(metrics, point));
+        if (polygon.length >= 3 && isPointInsidePolygon(p, polygon)) {
+          return { eye, metrics };
+        }
+      }
+      return null;
+    }
+
+    function translateShapePoints(eye, dx, dy) {
+      const metrics = lastEyeMetrics[eye];
+      if (!metrics) return;
+      const points = clonePoints(getCustomPoints(eye));
+      const nx = dx / Math.max(1, metrics.width);
+      const ny = dy / Math.max(1, metrics.height);
+      points.forEach((point) => {
+        point.x = clamp(point.x + nx, -0.95, 0.95);
+        point.y = clamp(point.y + ny, -0.95, 0.95);
+      });
+      setCustomPoints(eye, points);
+    }
+
+    function scaleShapePoints(eye, handle, dx, dy) {
+      const metrics = lastEyeMetrics[eye];
+      if (!metrics) return;
+      const points = clonePoints(getCustomPoints(eye));
+      const scaleX = clamp(1 + (dx * handle.sx) / Math.max(40, metrics.width), 0.45, 1.85);
+      const scaleY = clamp(1 + (dy * handle.sy) / Math.max(40, metrics.height), 0.45, 1.85);
+      points.forEach((point) => {
+        point.x = clamp(point.x * scaleX, -0.98, 0.98);
+        point.y = clamp(point.y * scaleY, -0.98, 0.98);
+      });
+      setCustomPoints(eye, points);
+    }
+
+    function addPointOnNearestSegment(p, eyes) {
+      const seg = findNearestVectorSegment(p, eyes);
+      if (!seg || seg.dist > 26) return false;
+      ensureCustomPathModeForEye(seg.eye);
+      const metrics = lastEyeMetrics[seg.eye];
+      if (!metrics) return false;
+
+      const np = pointFromCanvas(metrics, seg.x, seg.y);
+      const points = clonePoints(getCustomPoints(seg.eye));
+      points.splice(seg.insertAfter + 1, 0, { x: np.x, y: np.y, r: 0.32 });
+      setCustomPoints(seg.eye, points);
+      vectorEditor.selectedEye = seg.eye;
+      vectorEditor.selectedIndex = seg.insertAfter + 1;
+      syncVectorInfo();
+      render();
+      return true;
+    }
+    function ensureCustomPathModeForEye(eye) {
+      if (perEye.enabled) {
+        if (eye === "both") {
+          perEye.left.shapeModeOverride = "custom_path";
+          perEye.right.shapeModeOverride = "custom_path";
+        } else {
+          perEye[eye].shapeModeOverride = "custom_path";
+          if (perEye.lock) {
+            const other = eye === "left" ? "right" : "left";
+            perEye[other].shapeModeOverride = "custom_path";
+          }
+        }
+        leftShapeModeSelect.value = perEye.left.shapeModeOverride;
+        rightShapeModeSelect.value = perEye.right.shapeModeOverride;
+      } else {
+        state.shapeMode = "custom_path";
+        shapeModeSelect.value = "custom_path";
+      }
+    }
+
+    function pointToCanvas(metrics, point) {
+      return {
+        x: metrics.left + (point.x + 0.5) * metrics.width,
+        y: metrics.top + (point.y + 0.5) * metrics.height
+      };
+    }
+
+    function pointFromCanvas(metrics, x, y) {
+      return {
+        x: clamp((x - metrics.left) / Math.max(1, metrics.width) - 0.5, -0.95, 0.95),
+        y: clamp((y - metrics.top) / Math.max(1, metrics.height) - 0.5, -0.95, 0.95)
+      };
+    }
+
+    function nearestPointOnSegment(px, py, ax, ay, bx, by) {
+      const vx = bx - ax;
+      const vy = by - ay;
+      const len2 = vx * vx + vy * vy;
+      if (len2 < 1e-6) {
+        return { x: ax, y: ay, t: 0, dist: Math.hypot(px - ax, py - ay) };
+      }
+      const t = clamp(((px - ax) * vx + (py - ay) * vy) / len2, 0, 1);
+      const x = ax + vx * t;
+      const y = ay + vy * t;
+      return { x, y, t, dist: Math.hypot(px - x, py - y) };
+    }
+
+    function lerpState(a, b, t) {
+      const out = {};
+      Object.keys(defaults).forEach((key) => {
+        const av = a[key];
+        const bv = b[key];
+        const na = Number(av);
+        const nb = Number(bv);
+        if (Number.isFinite(na) && Number.isFinite(nb)) {
+          out[key] = lerp(na, nb, t);
+        } else {
+          out[key] = t < 0.5 ? av : bv;
+        }
+      });
+      return out;
+    }
+
+    function getTemplateForPresetId(id) {
+      const tuple = presetOptions.find(([presetEnum]) => presetEnum === id);
+      if (!tuple) return { ...defaults };
+      const templateName = tuple[1];
+      return { ...defaults, ...(templates[templateName] || {}) };
+    }
+
+    function scheduleNextBlink(now) {
+      anim.blink.nextAtMs = now + randRange(state.blinkMinMs, state.blinkMaxMs);
+    }
+
+    function startBlink(now, durationScale = 1.0) {
+      anim.blink.active = true;
+      anim.blink.startMs = now;
+      anim.blink.durationMs = Math.max(50, state.blinkDurationMs * durationScale);
+      anim.blink.amount = 0;
+    }
+
+    function triggerBlinkNow() {
+      const now = performance.now();
+      startBlink(now, 1.0);
+      anim.blink.pendingDouble = Math.random() < 0.18;
+    }
+
+    function cancelBlend() {
+      anim.blend.active = false;
+      anim.blend.from = null;
+      anim.blend.to = null;
+      anim.blend.targetPresetId = null;
+      anim.blend.t = 0;
+    }
+
+    function startBlendToPreset(targetPresetId, durationMs) {
+      const now = performance.now();
+      const toState = getTemplateForPresetId(targetPresetId);
+      let fromState = { ...state };
+
+      if (anim.blend.active && anim.blend.from && anim.blend.to) {
+        const prevT = clamp01((now - anim.blend.startMs) / Math.max(1, anim.blend.durationMs));
+        fromState = lerpState(anim.blend.from, anim.blend.to, easeInOutCubic(prevT));
+      }
+
+      anim.blend.active = true;
+      anim.blend.startMs = now;
+      anim.blend.durationMs = Math.max(80, Number(durationMs) || state.transitionBlendMs);
+      anim.blend.from = fromState;
+      anim.blend.to = toState;
+      anim.blend.targetPresetId = targetPresetId;
+      anim.blend.t = 0;
+    }
+
+    function updateAnimationState(now) {
+      if (anim.blink.nextAtMs <= 0) {
+        scheduleNextBlink(now);
+      }
+
+      if (anim.enabled && !anim.blink.active && now >= anim.blink.nextAtMs) {
+        startBlink(now, 1.0);
+        anim.blink.pendingDouble = Math.random() < 0.10;
+      }
+
+      if (anim.blink.active) {
+        const p = clamp01((now - anim.blink.startMs) / Math.max(1, anim.blink.durationMs));
+        if (p >= 1) {
+          anim.blink.active = false;
+          anim.blink.amount = 0;
+          if (anim.blink.pendingDouble) {
+            anim.blink.pendingDouble = false;
+            anim.blink.nextAtMs = now + randRange(90, 190);
+          } else {
+            scheduleNextBlink(now);
+          }
+        } else {
+          const wave = Math.sin(Math.PI * p);
+          anim.blink.amount = wave * wave;
+        }
+      } else {
+        anim.blink.amount = 0;
+      }
+
+      if (anim.blend.active && anim.blend.from && anim.blend.to) {
+        const t = clamp01((now - anim.blend.startMs) / Math.max(1, anim.blend.durationMs));
+        anim.blend.t = t;
+        if (t >= 1) {
+          const finalState = { ...anim.blend.to };
+          Object.assign(state, finalState);
+          syncControlsFromState();
+
+          if (anim.blend.targetPresetId && [...presetId.options].some((o) => o.value === anim.blend.targetPresetId)) {
+            presetId.value = anim.blend.targetPresetId;
+            transitionTarget.value = anim.blend.targetPresetId;
+            const chosen = presetId.selectedOptions[0];
+            if (chosen && (!presetName.value.trim() || presetName.value.trim() === "neutral")) {
+              presetName.value = chosen.dataset.name;
+            }
+          }
+
+          cancelBlend();
+        }
+      }
+    }
+
+    function buildRenderState(now) {
+      let base = { ...state };
+
+      if (anim.blend.active && anim.blend.from && anim.blend.to) {
+        base = lerpState(anim.blend.from, anim.blend.to, easeInOutCubic(anim.blend.t));
+      }
+
+      const out = { ...base };
+
+      if (anim.enabled) {
+        const breathe = Math.sin(now * 0.0020) * 0.018;
+        const sway = Math.sin(now * 0.0012) * 0.7;
+        const spacingPulse = Math.sin(now * 0.0016) * 0.010;
+        out.baseOpenness = clamp(out.baseOpenness * (1 + breathe), 0.15, 1.40);
+        out.tiltDeg = clamp(out.tiltDeg + sway, -35, 35);
+        out.spacingScale = clamp(out.spacingScale * (1 + spacingPulse), 0.72, 1.35);
+      }
+
+      const blinkAmt = anim.enabled ? anim.blink.amount : 0;
+      const upperGain = clamp(state.blinkUpperPeak, 0, 1) * 0.62;
+      const lowerGain = clamp(state.blinkLowerPeak, 0, 1) * 0.62;
+
+      out.upperLid = clamp(out.upperLid + blinkAmt * upperGain, 0, 0.98);
+      out.lowerLid = clamp(out.lowerLid + blinkAmt * lowerGain, 0, 0.98);
+      out.baseOpenness = clamp(out.baseOpenness * (1 - blinkAmt * 0.92), 0.08, 1.40);
+
+      return out;
+    }
+
+    function updateAnimInfo() {
+      const blinkState = anim.blink.active ? `blink=${anim.blink.amount.toFixed(2)}` : "blink=idle";
+      const blendState = anim.blend.active ? `blend=${Math.round(anim.blend.t * 100)}%` : "blend=idle";
+      const eyeMode = perEye.enabled ? (perEye.lock ? "eyes=per-eye lock" : "eyes=per-eye free") : "eyes=linked";
+      animInfo.textContent = `anim=${anim.enabled ? "on" : "off"} | ${blinkState} | ${blendState} | ${eyeMode}`;
+      toggleAnimBtn.textContent = anim.enabled ? "Pausar Animacao" : "Retomar Animacao";
+    }
+
+    function animationFrame(now) {
+      updateAnimationState(now);
+      const drawState = buildRenderState(now);
+      render(drawState, now);
+      updateAnimInfo();
+      anim.rafId = requestAnimationFrame(animationFrame);
+    }
+
+    function createControls() {
+      controls.forEach(([sectionId, key, label, min, max, step]) => {
+        const section = document.getElementById(sectionId);
+        const row = document.createElement("div");
+        row.className = "control";
+
+        const lab = document.createElement("label");
+        lab.textContent = label;
+
+        const input = document.createElement("input");
+        input.type = "range";
+        input.id = key;
+        input.min = String(min);
+        input.max = String(max);
+        input.step = String(step);
+        input.value = String(state[key]);
+
+        const out = document.createElement("div");
+        out.className = "num";
+        out.id = `num-${key}`;
+        out.textContent = fmt(state[key]);
+
+        input.addEventListener("input", () => {
+          state[key] = Number(input.value);
+          out.textContent = fmt(state[key]);
+          render();
+        });
+
+        lab.appendChild(input);
+        row.appendChild(lab);
+        row.appendChild(out);
+        section.appendChild(row);
+      });
+    }
+
+    function syncControlsFromState() {
+      controls.forEach(([, key]) => {
+        const input = document.getElementById(key);
+        if (input) input.value = String(state[key]);
+        const num = document.getElementById(`num-${key}`);
+        if (num) num.textContent = fmt(state[key]);
+      });
+      shapeModeSelect.value = state.shapeMode || "rounded_rect";
+    }
+
+    function applyTemplate(name) {
+      const tpl = templates[name] || defaults;
+      Object.assign(state, defaults, tpl);
+      syncControlsFromState();
+      render();
+    }
+
+    function createEyeDeltaControls(side, sectionId) {
+      const section = document.getElementById(sectionId);
+      eyeDeltaControls.forEach(([key, label, min, max, step]) => {
+        const row = document.createElement("div");
+        row.className = "control";
+
+        const lab = document.createElement("label");
+        lab.textContent = label;
+
+        const input = document.createElement("input");
+        input.type = "range";
+        input.id = `eye-${side}-${key}`;
+        input.min = String(min);
+        input.max = String(max);
+        input.step = String(step);
+        input.value = String(perEye[side][key]);
+
+        const out = document.createElement("div");
+        out.className = "num";
+        out.id = `num-eye-${side}-${key}`;
+        out.textContent = fmt(perEye[side][key]);
+
+        input.addEventListener("input", () => {
+          perEye[side][key] = Number(input.value);
+          out.textContent = fmt(perEye[side][key]);
+
+          if (perEye.lock) {
+            const other = side === "left" ? "right" : "left";
+            Object.assign(perEye[other], perEye[side]);
+            syncEyeControlsFromState(other);
+          }
+          render();
+        });
+
+        lab.appendChild(input);
+        row.appendChild(lab);
+        row.appendChild(out);
+        section.appendChild(row);
+      });
+    }
+
+    function syncEyeControlsFromState(side) {
+      eyeDeltaControls.forEach(([key]) => {
+        const input = document.getElementById(`eye-${side}-${key}`);
+        const num = document.getElementById(`num-eye-${side}-${key}`);
+        if (input) input.value = String(perEye[side][key]);
+        if (num) num.textContent = fmt(perEye[side][key]);
+      });
+    }
+
+    function setEyeSectionsEnabled(enabled) {
+      secLeftEyeDeltas.classList.toggle("section-disabled", !enabled);
+      secRightEyeDeltas.classList.toggle("section-disabled", !enabled);
+    }
+
+    function updatePerEyeUi() {
+      lockEyesCheck.disabled = !perEye.enabled;
+      leftShapeModeSelect.disabled = !perEye.enabled;
+      rightShapeModeSelect.disabled = !perEye.enabled;
+      if (perEye.lock) {
+        rightShapeModeSelect.disabled = true;
+      }
+      winkLeftBtn.disabled = !perEye.enabled;
+      winkRightBtn.disabled = !perEye.enabled;
+      setEyeSectionsEnabled(perEye.enabled);
+      shapeModeInfo.textContent = perEye.enabled ? "global + per-eye" : "global";
+    }
+
+    function applyEyeDelta(base, delta) {
+      const mode = delta.shapeModeOverride && delta.shapeModeOverride !== "inherit" ? delta.shapeModeOverride : base.shapeMode;
+      return {
+        ...base,
+        shapeMode: mode,
+        widthScale: clamp(base.widthScale + delta.widthScaleDelta, 0.30, 2.40),
+        heightScale: clamp(base.heightScale + delta.heightScaleDelta, 0.30, 2.10),
+        roundness: clamp(base.roundness + delta.roundnessDelta, 0.01, 0.98),
+        tiltDeg: clamp(base.tiltDeg + delta.tiltDegDelta, -45, 45),
+        innerCantDeg: clamp(base.innerCantDeg + delta.innerCantDegDelta, -45, 45),
+        outerCantDeg: clamp(base.outerCantDeg + delta.outerCantDegDelta, -45, 45),
+        topWidthScale: clamp(base.topWidthScale + delta.topWidthScaleDelta, 0.20, 1.80),
+        bottomWidthScale: clamp(base.bottomWidthScale + delta.bottomWidthScaleDelta, 0.20, 1.80),
+        upperLid: clamp(base.upperLid + delta.upperLidDelta, 0, 0.98),
+        lowerLid: clamp(base.lowerLid + delta.lowerLidDelta, 0, 0.98),
+        baseOpenness: clamp(base.baseOpenness + delta.opennessDelta, 0.08, 1.50),
+        xOffset: clamp(delta.xOffset, -120, 120),
+        yOffset: clamp(delta.yOffset, -80, 80)
+      };
+    }
+
+    function applyWinkToEye(eyeState) {
+      return {
+        ...eyeState,
+        upperLid: clamp(eyeState.upperLid + 0.82, 0, 0.98),
+        lowerLid: clamp(eyeState.lowerLid + 0.42, 0, 0.98),
+        baseOpenness: clamp(eyeState.baseOpenness * 0.12, 0.04, 1.50)
+      };
+    }
+
+    function buildEyeStates(drawState, now) {
+      if (!perEye.enabled) {
+        return {
+          left: { ...drawState, xOffset: linkedOffset.x, yOffset: linkedOffset.y },
+          right: { ...drawState, xOffset: linkedOffset.x, yOffset: linkedOffset.y }
+        };
+      }
+
+      let left = applyEyeDelta(drawState, perEye.left);
+      let right = applyEyeDelta(drawState, perEye.right);
+
+      if (now < perEye.wink.leftUntilMs) {
+        left = applyWinkToEye(left);
+      }
+      if (now < perEye.wink.rightUntilMs) {
+        right = applyWinkToEye(right);
+      }
+
+      return { left, right };
+    }
+
+    function computeEyeMetrics(x, y, radius, sideSign, drawState) {
+      const width = radius * 2 * drawState.widthScale;
+      const baseHeight = radius * 2 * drawState.heightScale;
+      const openness = Math.max(0.15, drawState.baseOpenness * (1 - 0.30 * (drawState.upperLid + drawState.lowerLid)));
+      const height = baseHeight * openness;
+      const centerX = x + (drawState.xOffset || 0);
+      const centerY = y + (drawState.yOffset || 0);
+      const left = centerX - width / 2;
+      const top = centerY - height / 2;
+      const innerCantPx = Math.tan((drawState.innerCantDeg || 0) * Math.PI / 180) * height * 0.22;
+      const outerCantPx = Math.tan((drawState.outerCantDeg || 0) * Math.PI / 180) * height * 0.22;
+      return {
+        centerX,
+        centerY,
+        width,
+        height,
+        left,
+        top,
+        sideSign,
+        innerCantPx,
+        outerCantPx,
+        drawState: { ...drawState }
+      };
+    }
+
+    function getActiveHandlePosition(metrics, handle) {
+      if (!metrics) return null;
+      const left = metrics.left;
+      const right = metrics.left + metrics.width;
+      const top = metrics.top;
+      const bottom = metrics.top + metrics.height;
+
+      const innerX = metrics.sideSign < 0 ? right : left;
+      const outerX = metrics.sideSign < 0 ? left : right;
+      const innerY = top - metrics.innerCantPx;
+      const outerY = top - metrics.outerCantPx;
+      const outerTopX = metrics.sideSign < 0 ? left + 8 : right - 8;
+      const outerTopY = top + 8;
+      const outerBottomX = metrics.sideSign < 0 ? left : right;
+      const outerBottomY = bottom;
+
+      switch (handle) {
+        case "innerCant":
+          return { x: innerX, y: innerY };
+        case "outerCant":
+          return { x: outerX, y: outerY };
+        case "topWidth":
+          return { x: (left + right) / 2, y: top };
+        case "bottomWidth":
+          return { x: (left + right) / 2, y: bottom };
+        case "sizeCorner":
+          return { x: outerBottomX, y: outerBottomY };
+        case "move":
+          return { x: (left + right) / 2, y: (top + bottom) / 2 };
+        case "roundness":
+        default:
+          return { x: outerTopX, y: outerTopY };
+      }
+    }
+
+    function drawCanvasEditOverlay() {
+      if (!canvasEdit.enabled) return;
+      const targets = canvasEdit.eye === "both" ? ["left", "right"] : [canvasEdit.eye];
+
+      ctx.save();
+      ctx.font = "12px Consolas, monospace";
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+
+      targets.forEach((eye) => {
+        const metrics = lastEyeMetrics[eye];
+        if (!metrics) return;
+        const p = getActiveHandlePosition(metrics, canvasEdit.handle);
+        if (!p) return;
+
+        const isActive = canvasEdit.dragging && canvasEdit.dragEye === eye;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, isActive ? 8 : 7, 0, Math.PI * 2);
+        ctx.fillStyle = isActive ? "#ffd24a" : "#ffe16a";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#1f1f1f";
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.fillText(`${eye}:${canvasEdit.handle}`, p.x + 10, p.y - 10);
+      });
+      ctx.restore();
+    }
+
+    function drawVectorOverlay() {
+      if (!vectorEditor.enabled) return;
+      const targets = getVectorTargets();
+
+      ctx.save();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(120, 240, 255, 0.75)";
+      ctx.fillStyle = "rgba(120, 240, 255, 0.18)";
+      ctx.font = "12px Consolas, monospace";
+
+      targets.forEach((eye) => {
+        const metrics = lastEyeMetrics[eye];
+        if (!metrics) return;
+        const points = getCustomPoints(eye);
+        if (!points || points.length < 3) return;
+
+        const poly = points.map((p) => pointToCanvas(metrics, p));
+        ctx.beginPath();
+        ctx.moveTo(poly[0].x, poly[0].y);
+        for (let i = 1; i < poly.length; i += 1) {
+          ctx.lineTo(poly[i].x, poly[i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        getScaleHandles(metrics).forEach((handle) => {
+          const active = vectorEditor.dragKind === "scale" && vectorEditor.dragEye === eye && vectorEditor.dragHandle && vectorEditor.dragHandle.id === handle.id;
+          ctx.fillStyle = active ? "#ffffff" : "rgba(255,255,255,0.82)";
+          ctx.strokeStyle = active ? "#ffb454" : "#26363c";
+          ctx.lineWidth = 2;
+          ctx.fillRect(handle.x - 4.5, handle.y - 4.5, 9, 9);
+          ctx.strokeRect(handle.x - 4.5, handle.y - 4.5, 9, 9);
+        });
+
+        poly.forEach((p, idx) => {
+          const selected = vectorEditor.selectedEye === eye && vectorEditor.selectedIndex === idx;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, selected ? 6.5 : 5.0, 0, Math.PI * 2);
+          ctx.fillStyle = selected ? "#ffe16a" : "#7ef3ff";
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = selected ? "#2b2614" : "#06323a";
+          ctx.stroke();
+        });
+
+        ctx.fillStyle = "rgba(255,255,255,0.88)";
+        ctx.fillText(eye, metrics.left + 6, metrics.top - 10);
+      });
+
+      ctx.restore();
+    }
+
+    function findNearestVectorPoint(p, eyes) {
+      let best = null;
+      eyes.forEach((eye) => {
+        const metrics = lastEyeMetrics[eye];
+        if (!metrics) return;
+        const points = getCustomPoints(eye);
+        points.forEach((pt, idx) => {
+          const cp = pointToCanvas(metrics, pt);
+          const dist = Math.hypot(p.x - cp.x, p.y - cp.y);
+          if (!best || dist < best.dist) {
+            best = { eye, index: idx, dist, x: cp.x, y: cp.y };
+          }
+        });
+      });
+      return best;
+    }
+
+    function findNearestVectorSegment(p, eyes) {
+      let best = null;
+      eyes.forEach((eye) => {
+        const metrics = lastEyeMetrics[eye];
+        if (!metrics) return;
+        const points = getCustomPoints(eye);
+        if (points.length < 2) return;
+
+        for (let i = 0; i < points.length; i += 1) {
+          const j = (i + 1) % points.length;
+          const a = pointToCanvas(metrics, points[i]);
+          const b = pointToCanvas(metrics, points[j]);
+          const hit = nearestPointOnSegment(p.x, p.y, a.x, a.y, b.x, b.y);
+          if (!best || hit.dist < best.dist) {
+            best = {
+              eye,
+              insertAfter: i,
+              dist: hit.dist,
+              x: hit.x,
+              y: hit.y
+            };
+          }
+        }
+      });
+      return best;
+    }
+
+    function onVectorMouseDown(evt) {
+      const p = toCanvasPoint(evt);
+      const eyes = getVectorTargets();
+      const pointHit = findNearestVectorPoint(p, eyes);
+      const scaleHit = hitTestScaleHandle(p, eyes);
+      const interiorHit = hitTestShapeInterior(p, eyes);
+
+      if (evt.altKey && pointHit && pointHit.dist <= 18) {
+        const points = clonePoints(getCustomPoints(pointHit.eye));
+        if (points.length > 3) {
+          points.splice(pointHit.index, 1);
+          setCustomPoints(pointHit.eye, points);
+          vectorEditor.selectedEye = pointHit.eye;
+          vectorEditor.selectedIndex = Math.min(pointHit.index, points.length - 1);
+          syncVectorInfo();
+          render();
+        }
+        evt.preventDefault();
+        return;
+      }
+
+      if (pointHit && pointHit.dist <= 18) {
+        vectorEditor.selectedEye = pointHit.eye;
+        vectorEditor.selectedIndex = pointHit.index;
+        vectorEditor.dragging = true;
+        vectorEditor.dragKind = "point";
+        vectorEditor.dragEye = pointHit.eye;
+        vectorEditor.dragHandle = null;
+        vectorEditor.lastX = p.x;
+        vectorEditor.lastY = p.y;
+        canvas.style.cursor = "grabbing";
+        syncVectorInfo();
+        render();
+        evt.preventDefault();
+        return;
+      }
+
+      if (scaleHit) {
+        vectorEditor.dragging = true;
+        vectorEditor.dragKind = "scale";
+        vectorEditor.dragEye = scaleHit.eye;
+        vectorEditor.dragHandle = scaleHit.handle;
+        vectorEditor.lastX = p.x;
+        vectorEditor.lastY = p.y;
+        canvas.style.cursor = "grabbing";
+        syncVectorInfo();
+        render();
+        evt.preventDefault();
+        return;
+      }
+
+      if (interiorHit) {
+        vectorEditor.dragging = true;
+        vectorEditor.dragKind = "shape";
+        vectorEditor.dragEye = interiorHit.eye;
+        vectorEditor.dragHandle = null;
+        vectorEditor.lastX = p.x;
+        vectorEditor.lastY = p.y;
+        clearSelectedPoint();
+        syncVectorInfo();
+        render();
+        evt.preventDefault();
+        return;
+      }
+
+      clearSelectedPoint();
+      syncVectorInfo();
+      render();
+    }
+
+    function onVectorMouseMove(evt) {
+      if (!vectorEditor.dragging) return;
+      const p = toCanvasPoint(evt);
+      const dx = p.x - vectorEditor.lastX;
+      const dy = p.y - vectorEditor.lastY;
+      vectorEditor.lastX = p.x;
+      vectorEditor.lastY = p.y;
+
+      if (vectorEditor.dragKind === "point") {
+        const metrics = lastEyeMetrics[vectorEditor.dragEye];
+        if (!metrics) return;
+        const np = pointFromCanvas(metrics, p.x, p.y);
+        const points = clonePoints(getCustomPoints(vectorEditor.dragEye));
+        const idx = vectorEditor.selectedIndex;
+        if (idx < 0 || idx >= points.length) return;
+        points[idx].x = np.x;
+        points[idx].y = np.y;
+        setCustomPoints(vectorEditor.dragEye, points);
+      } else if (vectorEditor.dragKind === "shape") {
+        translateShapePoints(vectorEditor.dragEye, dx, dy);
+      } else if (vectorEditor.dragKind === "scale" && vectorEditor.dragHandle) {
+        scaleShapePoints(vectorEditor.dragEye, vectorEditor.dragHandle, dx, dy);
+      }
+
+      render();
+      evt.preventDefault();
+    }
+
+    function onVectorMouseUp() {
+      if (!vectorEditor.dragging) return;
+      vectorEditor.dragging = false;
+      vectorEditor.dragKind = null;
+      vectorEditor.dragHandle = null;
+      canvas.style.cursor = vectorEditor.enabled ? "crosshair" : "default";
+    }
+
+    function onCanvasDoubleClick(evt) {
+      if (!vectorEditor.enabled) return;
+      addPointOnNearestSegment(toCanvasPoint(evt), getVectorTargets());
+    }
+    function toCanvasPoint(evt) {
+      const rect = canvas.getBoundingClientRect();
+      let x = (evt.clientX - rect.left) * (canvas.width / rect.width);
+      let y = (evt.clientY - rect.top) * (canvas.height / rect.height);
+      if (canvasEdit.snapEnabled) {
+        const s = Math.max(1, canvasEdit.snapStep || 8);
+        x = Math.round(x / s) * s;
+        y = Math.round(y / s) * s;
+      }
+      return { x, y };
+    }
+
+    function ensureWedgeForEye(eye) {
+      if (perEye.enabled) {
+        if (perEye[eye].shapeModeOverride === "inherit") {
+          state.shapeMode = "wedge";
+          shapeModeSelect.value = "wedge";
+        } else {
+          perEye[eye].shapeModeOverride = "wedge";
+          if (perEye.lock) {
+            const other = eye === "left" ? "right" : "left";
+            perEye[other].shapeModeOverride = "wedge";
+          }
+        }
+      } else {
+        state.shapeMode = "wedge";
+        shapeModeSelect.value = "wedge";
+      }
+      leftShapeModeSelect.value = perEye.left.shapeModeOverride;
+      rightShapeModeSelect.value = perEye.right.shapeModeOverride;
+    }
+
+    const deltaMap = {
+      roundness: "roundnessDelta",
+      innerCantDeg: "innerCantDegDelta",
+      outerCantDeg: "outerCantDegDelta",
+      topWidthScale: "topWidthScaleDelta",
+      bottomWidthScale: "bottomWidthScaleDelta"
+    };
+
+    function setEyeParam(eye, key, value) {
+      if (eye === "both") {
+        setEyeParam("left", key, value);
+        setEyeParam("right", key, value);
+        return;
+      }
+
+      if (perEye.enabled) {
+        const deltaKey = deltaMap[key];
+        if (deltaKey) {
+          perEye[eye][deltaKey] = value - state[key];
+          if (perEye.lock) {
+            const other = eye === "left" ? "right" : "left";
+            perEye[other][deltaKey] = perEye[eye][deltaKey];
+            syncEyeControlsFromState(other);
+          }
+          syncEyeControlsFromState(eye);
+        }
+      } else {
+        state[key] = value;
+        syncControlsFromState();
+      }
+    }
+
+    function setEyeOffset(eye, dx, dy) {
+      if (!perEye.enabled) {
+        linkedOffset.x = clamp(linkedOffset.x + dx, -120, 120);
+        linkedOffset.y = clamp(linkedOffset.y + dy, -80, 80);
+        return;
+      }
+
+      if (eye === "both") {
+        setEyeOffset("left", dx, dy);
+        setEyeOffset("right", dx, dy);
+        return;
+      }
+
+      perEye[eye].xOffset = clamp(perEye[eye].xOffset + dx, -120, 120);
+      perEye[eye].yOffset = clamp(perEye[eye].yOffset + dy, -80, 80);
+      syncEyeControlsFromState(eye);
+
+      if (perEye.lock) {
+        const other = eye === "left" ? "right" : "left";
+        perEye[other].xOffset = perEye[eye].xOffset;
+        perEye[other].yOffset = perEye[eye].yOffset;
+        syncEyeControlsFromState(other);
+      }
+    }
+
+    function applyCanvasDrag(dx, dy) {
+      const targets = canvasEdit.eye === "both" ? ["left", "right"] : [canvasEdit.dragEye || canvasEdit.eye];
+
+      if (canvasEdit.handle === "move") {
+        const targetEye = canvasEdit.eye === "both" ? "both" : (canvasEdit.dragEye || canvasEdit.eye);
+        setEyeOffset(targetEye, dx, dy);
+        return;
+      }
+
+      targets.forEach((eye) => {
+        const m = lastEyeMetrics[eye];
+        if (!m) return;
+
+        if (canvasEdit.handle === "roundness") {
+          const v = clamp(m.drawState.roundness + (dx - dy) * 0.0035, 0.01, 0.98);
+          setEyeParam(eye, "roundness", v);
+        } else if (canvasEdit.handle === "innerCant") {
+          ensureWedgeForEye(eye);
+          const v = clamp(m.drawState.innerCantDeg - dy * 0.22, -45, 45);
+          setEyeParam(eye, "innerCantDeg", v);
+        } else if (canvasEdit.handle === "outerCant") {
+          ensureWedgeForEye(eye);
+          const v = clamp(m.drawState.outerCantDeg - dy * 0.22, -45, 45);
+          setEyeParam(eye, "outerCantDeg", v);
+        } else if (canvasEdit.handle === "topWidth") {
+          ensureWedgeForEye(eye);
+          const deltaX = canvasEdit.eye === "both" ? dx : dx * m.sideSign;
+          const v = clamp(m.drawState.topWidthScale + deltaX * 0.004, 0.20, 1.80);
+          setEyeParam(eye, "topWidthScale", v);
+        } else if (canvasEdit.handle === "bottomWidth") {
+          ensureWedgeForEye(eye);
+          const deltaX = canvasEdit.eye === "both" ? dx : dx * m.sideSign;
+          const v = clamp(m.drawState.bottomWidthScale + deltaX * 0.004, 0.20, 1.80);
+          setEyeParam(eye, "bottomWidthScale", v);
+        } else if (canvasEdit.handle === "sizeCorner") {
+          const deltaX = canvasEdit.eye === "both" ? dx : dx * m.sideSign;
+          const w = clamp(m.drawState.widthScale + deltaX * 0.006, 0.30, 2.40);
+          const h = clamp(m.drawState.heightScale + dy * 0.006, 0.30, 2.10);
+          setEyeParam(eye, "widthScale", w);
+          setEyeParam(eye, "heightScale", h);
+        }
+      });
+    }
+
+    function onCanvasMouseDown(evt) {
+      if (vectorEditor.enabled) {
+        onVectorMouseDown(evt);
+        return;
+      }
+
+      if (!canvasEdit.enabled) return;
+      const p = toCanvasPoint(evt);
+      const targets = canvasEdit.eye === "both" ? ["left", "right"] : [canvasEdit.eye];
+
+      let bestEye = null;
+      let bestDist = Number.POSITIVE_INFINITY;
+      targets.forEach((eye) => {
+        const metrics = lastEyeMetrics[eye];
+        const hp = getActiveHandlePosition(metrics, canvasEdit.handle);
+        if (!hp) return;
+        const dist = Math.hypot(p.x - hp.x, p.y - hp.y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestEye = eye;
+        }
+      });
+
+      if (bestEye === null || bestDist > 16) return;
+
+      canvasEdit.dragging = true;
+      canvasEdit.dragEye = bestEye;
+      canvasEdit.lastX = p.x;
+      canvasEdit.lastY = p.y;
+      canvas.style.cursor = "grabbing";
+      evt.preventDefault();
+    }
+
+    function onCanvasMouseMove(evt) {
+      if (vectorEditor.enabled) {
+        onVectorMouseMove(evt);
+        return;
+      }
+
+      if (!canvasEdit.dragging) return;
+      const p = toCanvasPoint(evt);
+      const dx = p.x - canvasEdit.lastX;
+      const dy = p.y - canvasEdit.lastY;
+      canvasEdit.lastX = p.x;
+      canvasEdit.lastY = p.y;
+
+      applyCanvasDrag(dx, dy);
+      render();
+      evt.preventDefault();
+    }
+
+    function onCanvasMouseUp() {
+      if (vectorEditor.enabled) {
+        onVectorMouseUp();
+      }
+      if (!canvasEdit.dragging) return;
+      canvasEdit.dragging = false;
+      canvas.style.cursor = canvasEdit.enabled ? "crosshair" : "default";
+    }
+
+    function drawEye(x, y, radius, sideSign = 1, drawState = state, eyeName = "left") {
+      const width = radius * 2 * drawState.widthScale;
+      const baseHeight = radius * 2 * drawState.heightScale;
+      const openness = Math.max(0.15, drawState.baseOpenness * (1 - 0.30 * (drawState.upperLid + drawState.lowerLid)));
+      const height = baseHeight * openness;
+      const round = Math.max(3, Math.min(height / 2, height * drawState.roundness + 1.5));
+
+      ctx.save();
+      ctx.translate(x + (drawState.xOffset || 0), y + (drawState.yOffset || 0));
+      ctx.transform(1, 0, sideSign * Math.tan((drawState.tiltDeg * Math.PI / 180) * 0.35), 1, 0, 0);
+
+      const left = -width / 2;
+      const top = -height / 2;
+
+      const mode = drawState.shapeMode || "rounded_rect";
+      if (mode === "wedge") {
+        wedgeShape(left, top, width, height, drawState, sideSign);
+      } else if (mode === "custom_path") {
+        customPathShape(left, top, width, height, getCustomPoints(eyeName));
+      } else {
+        roundedRect(left, top, width, height, round);
+      }
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--eye").trim() || "#8dc5ff";
+      ctx.fill();
+
+      const topCut = height * drawState.upperLid * 0.58;
+      const bottomCut = height * drawState.lowerLid * 0.58;
+      if (topCut > 0.2) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(left - 1, top - 1, width + 2, topCut);
+      }
+      if (bottomCut > 0.2) {
+        ctx.fillStyle = "#000";
+        ctx.fillRect(left - 1, top + height - bottomCut + 1, width + 2, bottomCut + 1);
+      }
+
+      ctx.restore();
+    }
+
+    function customPathShape(x, y, w, h, points) {
+      if (!points || points.length < 3) {
+        roundedRect(x, y, w, h, Math.min(w, h) * 0.22);
+        return;
+      }
+
+      const local = points.map((p) => ({
+        x: x + (p.x + 0.5) * w,
+        y: y + (p.y + 0.5) * h,
+        r: clamp01(p.r)
+      }));
+
+      drawRoundedPolygon(local);
+    }
+
+    function drawRoundedPolygon(points) {
+      if (!points || points.length < 3) return;
+      const n = points.length;
+
+      const meta = points.map((curr, i) => {
+        const prev = points[(i + n - 1) % n];
+        const next = points[(i + 1) % n];
+
+        const vPrev = { x: prev.x - curr.x, y: prev.y - curr.y };
+        const vNext = { x: next.x - curr.x, y: next.y - curr.y };
+        const lenPrev = Math.hypot(vPrev.x, vPrev.y);
+        const lenNext = Math.hypot(vNext.x, vNext.y);
+        const maxRadius = Math.max(0, Math.min(lenPrev, lenNext) * 0.46);
+        const rr = clamp01(curr.r) * maxRadius;
+
+        if (rr < 0.5 || lenPrev < 1e-5 || lenNext < 1e-5) {
+          return {
+            curr,
+            inPoint: { x: curr.x, y: curr.y },
+            outPoint: { x: curr.x, y: curr.y },
+            rounded: false
+          };
+        }
+
+        const inPoint = {
+          x: curr.x + (vPrev.x / lenPrev) * rr,
+          y: curr.y + (vPrev.y / lenPrev) * rr
+        };
+        const outPoint = {
+          x: curr.x + (vNext.x / lenNext) * rr,
+          y: curr.y + (vNext.y / lenNext) * rr
+        };
+
+        return { curr, inPoint, outPoint, rounded: true };
+      });
+
+      ctx.beginPath();
+      ctx.moveTo(meta[0].outPoint.x, meta[0].outPoint.y);
+      for (let i = 1; i < n; i += 1) {
+        ctx.lineTo(meta[i].inPoint.x, meta[i].inPoint.y);
+        if (meta[i].rounded) {
+          ctx.quadraticCurveTo(meta[i].curr.x, meta[i].curr.y, meta[i].outPoint.x, meta[i].outPoint.y);
+        }
+      }
+      ctx.lineTo(meta[0].inPoint.x, meta[0].inPoint.y);
+      if (meta[0].rounded) {
+        ctx.quadraticCurveTo(meta[0].curr.x, meta[0].curr.y, meta[0].outPoint.x, meta[0].outPoint.y);
+      }
+      ctx.closePath();
+    }
+
+    function wedgeShape(x, y, w, h, drawState, sideSign) {
+      const topScale = clamp(drawState.topWidthScale, 0.20, 1.80);
+      const bottomScale = clamp(drawState.bottomWidthScale, 0.20, 1.80);
+      const tw = w * topScale;
+      const bw = w * bottomScale;
+
+      const innerCant = Math.tan((drawState.innerCantDeg || 0) * Math.PI / 180) * h * 0.22;
+      const outerCant = Math.tan((drawState.outerCantDeg || 0) * Math.PI / 180) * h * 0.22;
+
+      let topLeftY = y;
+      let topRightY = y;
+      if (sideSign < 0) {
+        // left eye: inner edge is right
+        topRightY -= innerCant;
+        topLeftY -= outerCant;
+      } else {
+        // right eye: inner edge is left
+        topLeftY -= innerCant;
+        topRightY -= outerCant;
+      }
+
+      const topLeftX = x + (w - tw) * 0.5;
+      const topRightX = topLeftX + tw;
+      const bottomLeftX = x + (w - bw) * 0.5;
+      const bottomRightX = bottomLeftX + bw;
+      const bottomY = y + h;
+
+      ctx.beginPath();
+      ctx.moveTo(topLeftX, topLeftY);
+      ctx.lineTo(topRightX, topRightY);
+      ctx.lineTo(bottomRightX, bottomY);
+      ctx.lineTo(bottomLeftX, bottomY);
+      ctx.closePath();
+    }
+
+    function roundedRect(x, y, w, h, r) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
+    }
+
+    function parsePresetLine(line) {
+      const src = (line || "").trim();
+      if (!src || !src.includes("makePreset(")) return null;
+
+      const idMatch = src.match(/FacePresetId::([A-Za-z0-9_]+)/);
+      const nameMatch = src.match(/FacePresetId::[A-Za-z0-9_]+\s*,\s*"([^"]+)"/);
+      const argsStart = src.indexOf('",');
+      const argsSlice = argsStart >= 0 ? src.slice(argsStart + 2) : src;
+      const numberMatches = argsSlice.match(/-?\d+(?:\.\d+)?f?/g) || [];
+      const numbers = numberMatches.map((token) => Number(token.replace("f", ""))).filter((n) => Number.isFinite(n));
+
+      // We expect 20 numeric args after id and name.
+      if (numbers.length < 20) return null;
+
+      return {
+        id: idMatch ? idMatch[1] : null,
+        name: nameMatch ? nameMatch[1] : null,
+        values: {
+          widthScale: numbers[0],
+          heightScale: numbers[1],
+          roundness: numbers[2],
+          tiltDeg: numbers[3],
+          spacingScale: numbers[4],
+          upperLid: numbers[5],
+          lowerLid: numbers[6],
+          baseOpenness: numbers[7],
+          blinkMinMs: numbers[8],
+          blinkMaxMs: numbers[9],
+          blinkDurationMs: numbers[10],
+          blinkUpperPeak: numbers[11],
+          blinkLowerPeak: numbers[12],
+          transitionResponseHz: numbers[13],
+          transitionAlphaMin: numbers[14],
+          transitionAlphaMax: numbers[15],
+          transitionBlendMs: numbers[16],
+          transitionHoldMs: numbers[17],
+          transitionSettleMs: numbers[18],
+          transitionBlendCurveExp: numbers[19]
+        }
+      };
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch (_) {
+        // Fallback for file:// or blocked clipboard permissions.
+      }
+      const temp = document.createElement("textarea");
+      temp.value = text;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand("copy");
+      document.body.removeChild(temp);
+    }
+
+    function generateCpp() {
+      const id = presetId.value;
+      const name = presetName.value.trim() || presetId.selectedOptions[0].dataset.name;
+
+      return `makePreset(FacePresetId::${id}, "${name}", ${fmtF(state.widthScale)}, ${fmtF(state.heightScale)}, ${fmtF(state.roundness)}, ${fmtF(state.tiltDeg, 1)}, ${fmtF(state.spacingScale)}, ${fmtF(state.upperLid)}, ${fmtF(state.lowerLid)}, ${fmtF(state.baseOpenness)},\n` +
+             `           ${Math.round(state.blinkMinMs)}, ${Math.round(state.blinkMaxMs)}, ${Math.round(state.blinkDurationMs)}, ${fmtF(state.blinkUpperPeak)}, ${fmtF(state.blinkLowerPeak)}, ${fmtF(state.transitionResponseHz, 1)}, ${fmtF(state.transitionAlphaMin)}, ${fmtF(state.transitionAlphaMax)}, ${Math.round(state.transitionBlendMs)}, ${Math.round(state.transitionHoldMs)}, ${Math.round(state.transitionSettleMs)}, ${fmtF(state.transitionBlendCurveExp)}),`;
+    }
+
+    function render(drawState = state, now = performance.now()) {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // subtle grid
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.05)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < w; x += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      const centerX = w / 2;
+      const centerY = h / 2;
+      const radius = 66;
+      const baseSpacing = 168 * drawState.spacingScale;
+      const eyeStates = buildEyeStates(drawState, now);
+
+      const leftX = centerX - baseSpacing / 2;
+      const rightX = centerX + baseSpacing / 2;
+
+      drawEye(leftX, centerY, radius, -1, eyeStates.left, "left");
+      drawEye(rightX, centerY, radius, 1, eyeStates.right, "right");
+
+      lastEyeMetrics.left = computeEyeMetrics(leftX, centerY, radius, -1, eyeStates.left);
+      lastEyeMetrics.right = computeEyeMetrics(rightX, centerY, radius, 1, eyeStates.right);
+      drawCanvasEditOverlay();
+      drawVectorOverlay();
+
+      cppLine.value = generateCpp();
+      jsonDump.value = JSON.stringify({
+        id: presetId.value,
+        name: presetName.value,
+        ...state,
+        perEye: {
+          enabled: perEye.enabled,
+          lock: perEye.lock,
+          left: perEye.left,
+          right: perEye.right
+        },
+        customShape: {
+          left: customShape.left,
+          right: customShape.right
+        }
+      }, null, 2);
+    }
+
+    document.getElementById("copyLine").addEventListener("click", async () => {
+      await copyText(cppLine.value);
+    });
+
+    document.getElementById("copyJson").addEventListener("click", async () => {
+      await copyText(jsonDump.value);
+    });
+
+    document.getElementById("loadTemplate").addEventListener("click", () => {
+      const name = presetId.selectedOptions[0].dataset.name;
+      presetName.value = name;
+      applyTemplate(name);
+    });
+
+    document.getElementById("resetValues").addEventListener("click", () => {
+      applyTemplate("neutral");
+    });
+
+    document.getElementById("applyImport").addEventListener("click", () => {
+      const parsed = parsePresetLine(importLine.value);
+      if (!parsed) {
+        alert("Linha makePreset invalida ou incompleta.");
+        return;
+      }
+      if (parsed.id && [...presetId.options].some((o) => o.value === parsed.id)) {
+        presetId.value = parsed.id;
+        transitionTarget.value = parsed.id;
+      }
+      if (parsed.name) {
+        presetName.value = parsed.name;
+      }
+      Object.assign(state, defaults, parsed.values);
+      syncControlsFromState();
+      render();
+    });
+
+    document.getElementById("clearImport").addEventListener("click", () => {
+      importLine.value = "";
+    });
+
+    presetId.addEventListener("change", () => {
+      const name = presetId.selectedOptions[0].dataset.name;
+      if (!presetName.value.trim() || presetName.value.trim() === "neutral") {
+        presetName.value = name;
+      }
+      transitionTarget.value = presetId.value;
+      render();
+    });
+
+    toggleAnimBtn.addEventListener("click", () => {
+      anim.enabled = !anim.enabled;
+      if (!anim.enabled) {
+        anim.blink.active = false;
+        anim.blink.amount = 0;
+      } else {
+        scheduleNextBlink(performance.now());
+      }
+      updateAnimInfo();
+      render();
+    });
+
+    blinkNowBtn.addEventListener("click", () => {
+      triggerBlinkNow();
+      updateAnimInfo();
+    });
+
+    blendToTargetBtn.addEventListener("click", () => {
+      startBlendToPreset(transitionTarget.value, Number(blendMsInput.value) || state.transitionBlendMs);
+      updateAnimInfo();
+    });
+
+    cancelBlendBtn.addEventListener("click", () => {
+      cancelBlend();
+      updateAnimInfo();
+    });
+
+    shapeModeSelect.addEventListener("change", () => {
+      state.shapeMode = shapeModeSelect.value;
+      render();
+    });
+
+    leftShapeModeSelect.addEventListener("change", () => {
+      perEye.left.shapeModeOverride = leftShapeModeSelect.value;
+      if (perEye.lock) {
+        perEye.right.shapeModeOverride = perEye.left.shapeModeOverride;
+        rightShapeModeSelect.value = perEye.right.shapeModeOverride;
+      }
+      render();
+    });
+
+    rightShapeModeSelect.addEventListener("change", () => {
+      perEye.right.shapeModeOverride = rightShapeModeSelect.value;
+      render();
+    });
+
+    canvasEditEnabledCheck.addEventListener("change", () => {
+      canvasEdit.enabled = canvasEditEnabledCheck.checked;
+      if (canvasEdit.enabled) {
+        vectorEditor.enabled = false;
+        vectorEditEnabledCheck.checked = false;
+        if (editorEnabledCheck) editorEnabledCheck.checked = false;
+      }
+      canvas.style.cursor = canvasEdit.enabled ? "crosshair" : "default";
+      syncVectorInfo();
+      render();
+    });
+
+    canvasEditEyeSelect.addEventListener("change", () => {
+      canvasEdit.eye = canvasEditEyeSelect.value;
+      canvasEdit.dragEye = canvasEdit.eye === "both" ? "left" : canvasEdit.eye;
+      render();
+    });
+
+    canvasEditHandleSelect.addEventListener("change", () => {
+      canvasEdit.handle = canvasEditHandleSelect.value;
+      render();
+    });
+
+    if (editorEnabledCheck) {
+      editorEnabledCheck.addEventListener("change", () => {
+        vectorEditor.enabled = editorEnabledCheck.checked;
+        vectorEditEnabledCheck.checked = vectorEditor.enabled;
+        if (vectorEditor.enabled) {
+          canvasEdit.enabled = false;
+          canvasEditEnabledCheck.checked = false;
+          ensureCustomPathModeForEye(vectorEditor.eye);
+        }
+        canvas.style.cursor = vectorEditor.enabled ? "crosshair" : "default";
+        syncVectorInfo();
+        render();
+      });
+    }
+
+    snapEnabledCheck.addEventListener("change", () => {
+      canvasEdit.snapEnabled = snapEnabledCheck.checked;
+      render();
+    });
+
+    snapStepInput.addEventListener("input", () => {
+      canvasEdit.snapStep = Math.max(1, Number(snapStepInput.value) || 8);
+    });
+
+    vectorEditEnabledCheck.addEventListener("change", () => {
+      vectorEditor.enabled = vectorEditEnabledCheck.checked;
+      if (editorEnabledCheck) editorEnabledCheck.checked = vectorEditor.enabled;
+      if (vectorEditor.enabled) {
+        canvasEdit.enabled = false;
+        canvasEditEnabledCheck.checked = false;
+        ensureCustomPathModeForEye(vectorEditor.eye);
+      }
+      canvas.style.cursor = (canvasEdit.enabled || vectorEditor.enabled) ? "crosshair" : "default";
+      syncVectorInfo();
+      render();
+    });
+
+    vectorEyeSelect.addEventListener("change", () => {
+      setEditorTarget(vectorEyeSelect.value);
+    });
+
+    if (editorEyeLeftBtn) editorEyeLeftBtn.addEventListener("click", () => setEditorTarget("left"));
+    if (editorEyeRightBtn) editorEyeRightBtn.addEventListener("click", () => setEditorTarget("right"));
+    if (editorEyeBothBtn) editorEyeBothBtn.addEventListener("click", () => setEditorTarget("both"));
+
+    vectorToolSelect.addEventListener("change", () => {
+      vectorEditor.tool = vectorToolSelect.value;
+      syncVectorInfo();
+      render();
+    });
+
+    vectorResetRectBtn.addEventListener("click", () => {
+      const targets = getVectorTargets();
+      targets.forEach((eye) => setCustomPoints(eye, createRectVectorPath()));
+      ensureCustomPathModeForEye(vectorEditor.eye);
+      syncVectorInfo();
+      render();
+    });
+
+    vectorResetWedgeBtn.addEventListener("click", () => {
+      const targets = getVectorTargets();
+      targets.forEach((eye) => setCustomPoints(eye, createWedgeVectorPath(eye)));
+      ensureCustomPathModeForEye(vectorEditor.eye);
+      syncVectorInfo();
+      render();
+    });
+
+    if (mirrorLeftToRightBtn) mirrorLeftToRightBtn.addEventListener("click", () => {
+      customShape.right = clonePoints(customShape.left);
+      syncVectorInfo();
+      render();
+    });
+
+    vertexRoundnessInput.addEventListener("input", () => {
+      if (!vectorEditor.selectedEye || vectorEditor.selectedIndex < 0) return;
+      const points = clonePoints(getCustomPoints(vectorEditor.selectedEye));
+      const idx = vectorEditor.selectedIndex;
+      if (idx < 0 || idx >= points.length) return;
+      points[idx].r = clamp01(Number(vertexRoundnessInput.value));
+      setCustomPoints(vectorEditor.selectedEye, points);
+      syncVectorInfo();
+      render();
+    });
+
+    canvas.addEventListener("mousedown", onCanvasMouseDown);
+    canvas.addEventListener("dblclick", onCanvasDoubleClick);
+    window.addEventListener("mousemove", onCanvasMouseMove);
+    window.addEventListener("mouseup", onCanvasMouseUp);
+
+    perEyeEnabledCheck.addEventListener("change", () => {
+      perEye.enabled = perEyeEnabledCheck.checked;
+      if (!perEye.enabled) {
+        perEye.wink.leftUntilMs = 0;
+        perEye.wink.rightUntilMs = 0;
+      }
+      updatePerEyeUi();
+      updateAnimInfo();
+      render();
+    });
+
+    lockEyesCheck.addEventListener("change", () => {
+      perEye.lock = lockEyesCheck.checked;
+      if (perEye.lock) {
+        Object.assign(perEye.right, perEye.left);
+        perEye.right.shapeModeOverride = perEye.left.shapeModeOverride;
+        customShape.right = clonePoints(customShape.left);
+        syncEyeControlsFromState("right");
+      }
+      leftShapeModeSelect.value = perEye.left.shapeModeOverride;
+      rightShapeModeSelect.value = perEye.right.shapeModeOverride;
+      updatePerEyeUi();
+      updateAnimInfo();
+      render();
+    });
+
+    winkLeftBtn.addEventListener("click", () => {
+      if (!perEye.enabled) return;
+      perEye.wink.leftUntilMs = performance.now() + Math.max(140, state.blinkDurationMs * 1.25);
+      render();
+    });
+
+    winkRightBtn.addEventListener("click", () => {
+      if (!perEye.enabled) return;
+      perEye.wink.rightUntilMs = performance.now() + Math.max(140, state.blinkDurationMs * 1.25);
+      render();
+    });
+
+    presetName.addEventListener("input", () => render());
+
+    createControls();
+    createEyeDeltaControls("left", "secLeftEyeDeltas");
+    createEyeDeltaControls("right", "secRightEyeDeltas");
+
+    perEyeEnabledCheck.checked = perEye.enabled;
+    lockEyesCheck.checked = perEye.lock;
+
+    presetId.value = "Neutral";
+    transitionTarget.value = "Neutral";
+    presetName.value = "neutral";
+    applyTemplate("neutral");
+
+    shapeModeSelect.value = state.shapeMode;
+    leftShapeModeSelect.value = perEye.left.shapeModeOverride;
+    rightShapeModeSelect.value = perEye.right.shapeModeOverride;
+    canvasEditEnabledCheck.checked = canvasEdit.enabled;
+    canvasEditEyeSelect.value = canvasEdit.eye;
+    canvasEditHandleSelect.value = canvasEdit.handle;
+    snapEnabledCheck.checked = canvasEdit.snapEnabled;
+    snapStepInput.value = String(canvasEdit.snapStep);
+    canvasEdit.dragEye = canvasEdit.eye === "both" ? "left" : canvasEdit.eye;
+    vectorEditEnabledCheck.checked = vectorEditor.enabled;
+    vectorEyeSelect.value = vectorEditor.eye;
+    vectorToolSelect.value = vectorEditor.tool;
+    if (editorEnabledCheck) editorEnabledCheck.checked = vectorEditor.enabled;
+    updateEditorEyeButtons();
+    ensureCustomPathModeForEye(vectorEditor.eye);
+    canvas.style.cursor = "default";
+
+    syncEyeControlsFromState("left");
+    syncEyeControlsFromState("right");
+    updatePerEyeUi();
+    updateAnimInfo();
+    syncVectorInfo();
+    scheduleNextBlink(performance.now() + 500);
+    anim.rafId = requestAnimationFrame(animationFrame);
+  </script>
+</body>
+</html>
+

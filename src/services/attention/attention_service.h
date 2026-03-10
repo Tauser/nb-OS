@@ -21,9 +21,10 @@ private:
   EventBus& eventBus_;
   AttentionFocus focus_ = AttentionFocus::Idle;
   unsigned long focusUntilMs_ = 0;
+  unsigned long lastFocusChangeMs_ = 0;
+  unsigned long lastIdleEnterMs_ = 0;
   unsigned long lastInteractionMs_ = 0;
   unsigned long lastInternalPulseMs_ = 0;
   unsigned long lastScanAttemptMs_ = 0;
   float engagement_ = 0.0f;
 };
-

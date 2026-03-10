@@ -28,6 +28,7 @@ public:
                float tiltDeg,
                float squashY,
                float stretchX,
+               float roundness,
                float upperLid,
                float lowerLid) override;
   void drawPupil(int x, int y, int radius) override;
@@ -44,3 +45,6 @@ private:
 
   DisplayDevice lcd_;
 };
+
+
+

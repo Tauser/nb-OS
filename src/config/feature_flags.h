@@ -6,6 +6,7 @@
 
 namespace FeatureFlags {
 constexpr bool DISPLAY_ENABLED = true;
+constexpr bool LED_ENABLED = true;
 
 #if NCOS_SIM_MODE
 constexpr bool STORAGE_SD_ENABLED = false;
@@ -27,3 +28,5 @@ constexpr bool CAMERA_ENABLED = true;
 constexpr bool CLOUD_ENABLED = true;
 #endif
 }
+
+

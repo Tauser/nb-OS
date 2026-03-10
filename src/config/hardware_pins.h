@@ -63,13 +63,33 @@ namespace Touch {
   constexpr int DATA = 38;
 }
 
+
+namespace Led {
+#if NCOS_PIN_PROFILE_SIM
+  // Two addressable RGB LEDs in chain on a single DATA line.
+  constexpr int DATA = 6;
+#else
+  // Real hardware: two addressable RGB LEDs in chain on a single DATA line.
+  constexpr int DATA = 6;
+#endif
+}
 namespace Power {
+#if NCOS_PIN_PROFILE_SIM
+  constexpr int BATTERY_ADC = -1;
+  constexpr int CHARGE_DETECT = -1;
+#else
   // Battery sense via ADC pin with resistor divider.
   constexpr int BATTERY_ADC = 4;
   // Optional charging detect pin from charger IC status.
   constexpr int CHARGE_DETECT = 5;
+#endif
 }
 } // namespace HardwarePins
+
+
+
+
+
 
 
 

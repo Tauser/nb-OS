@@ -5,6 +5,7 @@
 #include "../../interfaces/i_event_listener.h"
 #include "../../interfaces/i_face_controller.h"
 #include "../../interfaces/i_motion.h"
+#include "../../models/power_state.h"
 #include "../../models/routine_state.h"
 
 class RoutineService : public IEventListener {
@@ -47,4 +48,5 @@ private:
   unsigned long lastAutonomyStepMs_ = 0;
   unsigned long lastAttentionRecoveryMs_ = 0;
   bool nextLeft_ = true;
+  PowerMode powerMode_ = PowerMode::Normal;
 };

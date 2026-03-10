@@ -4,6 +4,10 @@
 #include "../../config/hardware_pins.h"
 #include <Arduino.h>
 
+#ifndef NCOS_SIM_MODE
+#define NCOS_SIM_MODE 0
+#endif
+
 bool PowerDriver::init() {
   if (HardwarePins::Power::BATTERY_ADC >= 0) {
     pinMode(HardwarePins::Power::BATTERY_ADC, INPUT);
@@ -23,6 +27,16 @@ bool PowerDriver::sample(PowerRawReading& outReading) const {
   if (!ready_) {
     return false;
   }
+
+#if NCOS_SIM_MODE
+  outReading.batteryMillivolts = static_cast<int>(
+      static_cast<float>(HardwareConfig::Power::BATTERY_EMPTY_MV) +
+      (static_cast<float>(HardwareConfig::Power::BATTERY_FULL_MV - HardwareConfig::Power::BATTERY_EMPTY_MV) *
+       (static_cast<float>(HardwareConfig::Power::SIM_BATTERY_PERCENT) / 100.0f)));
+  outReading.charging = HardwareConfig::Power::SIM_CHARGING;
+  outReading.valid = true;
+  return true;
+#endif
 
   if (HardwarePins::Power::BATTERY_ADC < 0) {
     outReading.batteryMillivolts = static_cast<int>(

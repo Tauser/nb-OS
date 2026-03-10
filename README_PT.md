@@ -1,31 +1,73 @@
-# nc-OS - Robot Desktop (ESP32-S3)
+# NC-OS — Desktop Companion Robot Firmware
 
-Base de firmware para robot desktop com arquitetura modular (drivers, HAL, services e core).
+![Platform](https://img.shields.io/badge/platform-ESP32--S3-blue)
+![Framework](https://img.shields.io/badge/framework-Arduino%20%2F%20PlatformIO-orange)
+![Display](https://img.shields.io/badge/display-ST7789-green)
+![Graphics](https://img.shields.io/badge/graphics-LovyanGFX-brightgreen)
+![Architecture](https://img.shields.io/badge/architecture-modular-informational)
+![Mode](https://img.shields.io/badge/mode-offline--first-success)
 
-## Hardware alvo
-- Freenove ESP32-S3-WROOM CAM N16R8
-- ST7789 2"
-- OV2640
-- MPU6050
-- INMP441 + MAX98357A + speaker 4 ohms 3W
-- 2x Feetech SCS0009
-- Touch capacitivo por fita de cobre
-- SW6106 + bateria 3.7V
+NC-OS é a plataforma de firmware e inteligência de um robô desktop companion construído sobre **ESP32-S3**, com foco em:
 
-## Estrutura do projeto
-- Arquitetura e bootstrap: `docs/PROJETO_ESTRUTURA_PT.md`
-- Pinagem consolidada (perfil real): `docs/PINOUT_CONSOLIDADO_PT.md`
+- operação **offline-first**
+- integração **cloud como extensão, não dependência**
+- arquitetura de firmware **profissional e modular**
+- **Face Engine** expressivo
+- **Neck Motion System** inspirado em Stack-chan
+- emoção, comportamento, autonomia e memória
+- evolução até nível de produto premium
 
-## Perfis de build
-- Hardware real: `env:esp32s3`
-- Simulacao Wokwi: `env:esp32s3_sim`
+---
 
-O `wokwi.toml` ja aponta para o build `esp32s3_sim`.
+## Visão do projeto
 
-## Status atual
-- Pipeline de display/face ativo.
-- Pipeline de camera estruturado (interface + driver + HAL + service).
-- Feature flags por modo em `src/config/feature_flags.h`.
+Este projeto foi concebido para criar um robô desktop companion que combine:
 
-## Proximo passo
-Implementar `esp32-camera` no driver OV2640 com perfil final da placa.
+- expressividade visual
+- linguagem corporal
+- emoção e humor
+- autonomia
+- memória
+- robustez de produto
+- capacidade de evolução contínua
+
+A meta é construir uma plataforma capaz de competir em:
+
+- arquitetura
+- extensibilidade
+- personalização
+- companion intelligence
+- potencial de evolução
+
+---
+
+## Filosofia do projeto
+
+> Sempre priorizar a melhor solução técnica possível, mais profissional, robusta e sustentável, evitando atalhos frágeis e simplificações que prejudiquem a evolução futura.
+
+### Princípios centrais
+
+- **offline-first**
+- **cloud as extension**
+- **arquitetura em camadas**
+- **desacoplamento entre lógica e hardware**
+- **configuração centralizada**
+- **evolução incremental**
+- **foco em produto, não só protótipo**
+
+---
+
+## Hardware principal
+
+Plataforma alvo atual:
+
+- **Freenove ESP32-S3-WROOM CAM N16R8**
+- câmera e SD onboard
+- display **ST7789**
+- biblioteca gráfica oficial: **LovyanGFX**
+- 2 servos para pescoço/cabeça
+- IMU
+- touch capacitivo
+- microfone
+- áudio de saída
+- bateria + power management

@@ -21,9 +21,10 @@ void DisplayHAL::drawEye(int x,
                          float tiltDeg,
                          float squashY,
                          float stretchX,
+                         float roundness,
                          float upperLid,
                          float lowerLid) {
-  display_.drawEye(x, y, radius, openness, tiltDeg, squashY, stretchX, upperLid, lowerLid);
+  display_.drawEye(x, y, radius, openness, tiltDeg, squashY, stretchX, roundness, upperLid, lowerLid);
 }
 
 void DisplayHAL::drawPupil(int x, int y, int radius) {
@@ -37,3 +38,6 @@ void DisplayHAL::drawText(int x, int y, const char* text) {
 void DisplayHAL::present() {
   display_.present();
 }
+
+
+

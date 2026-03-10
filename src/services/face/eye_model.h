@@ -13,6 +13,10 @@ struct EyeModel {
   float tiltDeg = 0.0f;
   float squashY = 1.0f;
   float stretchX = 1.0f;
+  float roundness = 0.52f;
 
   ExpressionType expression = ExpressionType::Neutral;
 };
+
+
+

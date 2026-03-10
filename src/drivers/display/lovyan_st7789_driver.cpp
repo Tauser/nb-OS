@@ -105,6 +105,7 @@ void LovyanSt7789Driver::drawEye(int x,
                                  float tiltDeg,
                                  float squashY,
                                  float stretchX,
+                                 float roundness,
                                  float upperLid,
                                  float lowerLid) {
   openness = MathUtils::clamp(openness, 0.0f, 1.0f);
@@ -112,9 +113,10 @@ void LovyanSt7789Driver::drawEye(int x,
   stretchX = MathUtils::clamp(stretchX, 0.75f, 1.40f);
   upperLid = MathUtils::clamp(upperLid, 0.0f, 0.95f);
   lowerLid = MathUtils::clamp(lowerLid, 0.0f, 0.95f);
+  roundness = MathUtils::clamp(roundness, 0.20f, 0.90f);
   tiltDeg = MathUtils::clamp(tiltDeg, -20.0f, 20.0f);
 
-  const uint16_t kEyeMain = 0x7DFF;
+  const uint16_t kEyeMain = 0x9E7F;
 
   // Base openness keeps the eye alive; lids are applied as explicit top/bottom cuts.
   const float baseOpen = MathUtils::clamp(openness * (1.0f - (0.30f * (upperLid + lowerLid))), 0.10f, 1.0f);
@@ -126,16 +128,16 @@ void LovyanSt7789Driver::drawEye(int x,
   const int left = x - (eyeWidth / 2);
   const int top = y - (eyeHeight / 2);
 
-  int corner = eyeWidth / 5;
-  if (corner < 4) corner = 4;
+  int corner = static_cast<int>((eyeHeight * roundness) + 1.5f);
+  if (corner < 3) corner = 3;
   if (corner > eyeHeight / 2) corner = eyeHeight / 2;
 
   // EMO/Eilik-inspired rounded rectangle, no pupil.
   lcd_.fillRoundRect(left, top, eyeWidth, eyeHeight, corner, kEyeMain);
 
   // Top/bottom lid cuts create stronger expression readability.
-  const int topCut = static_cast<int>(eyeHeight * upperLid * 0.70f);
-  const int bottomCut = static_cast<int>(eyeHeight * lowerLid * 0.70f);
+  const int topCut = static_cast<int>(eyeHeight * upperLid * 0.58f);
+  const int bottomCut = static_cast<int>(eyeHeight * lowerLid * 0.58f);
   if (topCut > 0) {
     lcd_.fillRect(left - 1, top - 1, eyeWidth + 2, topCut, TFT_BLACK);
   }
@@ -144,7 +146,7 @@ void LovyanSt7789Driver::drawEye(int x,
   }
 
   // Tilt as stronger shear to separate expressions (angry/sad/curious) visually.
-  const int shear = static_cast<int>(tiltDeg * 0.18f);
+  const int shear = static_cast<int>(tiltDeg * 0.16f);
   const int bandH = eyeHeight / 3;
   if (shear > 0) {
     lcd_.fillRect(left, top, shear, bandH, TFT_BLACK);
@@ -167,6 +169,13 @@ void LovyanSt7789Driver::drawText(int x, int y, const char* text) {
   lcd_.setCursor(x, y);
   lcd_.println(text);
 }
+
+
+
+
+
+
+
 
 
 

@@ -26,4 +26,5 @@ private:
   EyeModel lastLeft_{};
   EyeModel lastRight_{};
   bool hasLastFrame_ = false;
+  unsigned long lastRenderMs_ = 0;
 };

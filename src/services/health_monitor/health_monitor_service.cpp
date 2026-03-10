@@ -5,6 +5,10 @@
 #include "../../models/event.h"
 #include <Arduino.h>
 
+#ifndef NCOS_SIM_MODE
+#define NCOS_SIM_MODE 0
+#endif
+
 HealthMonitorService::HealthMonitorService(EventBus& eventBus, Diagnostics& diagnostics)
     : eventBus_(eventBus), diagnostics_(diagnostics) {}
 
@@ -13,6 +17,7 @@ void HealthMonitorService::init() {
 
   const unsigned long nowMs = millis();
   lastHeartbeatMs_ = nowMs;
+  lastActivityMs_ = nowMs;
   lastWindowMs_ = nowMs;
   lastStatusPublishMs_ = nowMs;
   lastAnomalyPublishMs_ = nowMs;
@@ -51,6 +56,7 @@ void HealthMonitorService::onEvent(const Event& event) {
   }
 
   eventsInWindow_++;
+  lastActivityMs_ = event.timestamp;
 
   if (event.type == EventType::Heartbeat) {
     lastHeartbeatMs_ = event.timestamp;
@@ -83,7 +89,14 @@ void HealthMonitorService::evaluateHealth(unsigned long nowMs) {
   snapshot_.freeHeapBytes = ESP.getFreeHeap();
   snapshot_.minFreeHeapBytes = ESP.getMinFreeHeap();
 
-  snapshot_.heartbeatOk = (nowMs - lastHeartbeatMs_) <= HardwareConfig::Health::HEARTBEAT_TIMEOUT_MS;
+#if NCOS_SIM_MODE
+  // In simulator, scheduler jitter and virtual timing can make heartbeat unreliable.
+  snapshot_.heartbeatOk = true;
+#else
+  const bool heartbeatFresh = (nowMs - lastHeartbeatMs_) <= HardwareConfig::Health::HEARTBEAT_TIMEOUT_MS;
+  const bool activityFresh = (nowMs - lastActivityMs_) <= HardwareConfig::Health::HEARTBEAT_TIMEOUT_MS;
+  snapshot_.heartbeatOk = heartbeatFresh || activityFresh;
+#endif
   snapshot_.renderOk = !FeatureFlags::DISPLAY_ENABLED || (snapshot_.renderFps >= HardwareConfig::Health::MIN_RENDER_FPS);
   snapshot_.memoryOk = snapshot_.freeHeapBytes >= HardwareConfig::Health::MIN_FREE_HEAP_BYTES;
   snapshot_.eventLoadOk = snapshot_.eventRatePerSecond <= HardwareConfig::Health::MAX_EVENT_RATE_PER_S;

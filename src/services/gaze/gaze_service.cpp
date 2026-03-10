@@ -15,13 +15,8 @@ void GazeService::init() {
   lastCommandMs_ = nowMs;
 }
 
-void GazeService::update(unsigned long nowMs) {
-  if (nowMs - lastGazeUpdateMs_ < HardwareConfig::Polish::GAZE_UPDATE_INTERVAL_MS) {
-    return;
-  }
-
-  lastGazeUpdateMs_ = nowMs;
-  applyFocusGaze(nowMs);
+void GazeService::update(unsigned long) {
+  // Event-driven to avoid continuous expression churn in idle.
 }
 
 void GazeService::onEvent(const Event& event) {
@@ -29,7 +24,14 @@ void GazeService::onEvent(const Event& event) {
     return;
   }
 
-  focus_ = static_cast<AttentionFocus>(event.value);
+  const AttentionFocus newFocus = static_cast<AttentionFocus>(event.value);
+  if (newFocus == focus_) {
+    return;
+  }
+
+  focus_ = newFocus;
+  const unsigned long nowMs = (event.timestamp > 0) ? event.timestamp : millis();
+  applyFocusGaze(nowMs);
 }
 
 void GazeService::applyFocusGaze(unsigned long nowMs) {
@@ -40,17 +42,17 @@ void GazeService::applyFocusGaze(unsigned long nowMs) {
 
   switch (focus_) {
     case AttentionFocus::Touch:
-      faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Social, 400);
+      faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Social, 500);
       motion_.curiousRight();
       break;
 
     case AttentionFocus::Voice:
-      faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Social, 450);
+      faceController_.requestExpression(ExpressionType::FaceRecognized, EyeAnimPriority::Social, 550);
       motion_.softListen();
       break;
 
     case AttentionFocus::Vision:
-      faceController_.requestExpression(ExpressionType::Curiosity, EyeAnimPriority::Emotion, 420);
+      faceController_.requestExpression(ExpressionType::Curiosity, EyeAnimPriority::Emotion, 500);
       if (turnLeft_) {
         motion_.curiousLeft();
       } else {
@@ -60,19 +62,15 @@ void GazeService::applyFocusGaze(unsigned long nowMs) {
       break;
 
     case AttentionFocus::Power:
-      faceController_.requestExpression(ExpressionType::BatteryAlert, EyeAnimPriority::Emotion, 500);
+      faceController_.requestExpression(ExpressionType::BatteryAlert, EyeAnimPriority::Emotion, 600);
       motion_.center();
       break;
 
     case AttentionFocus::Internal:
-      faceController_.requestExpression(ExpressionType::Curiosity, EyeAnimPriority::Idle, 350);
-      motion_.idleSway();
-      break;
-
     case AttentionFocus::Idle:
     case AttentionFocus::None:
     default:
-      faceController_.requestExpression(ExpressionType::Neutral, EyeAnimPriority::Idle, 300);
+      // Keep face ownership with Routine/Behavior during idle loops.
       motion_.idleSway();
       break;
   }

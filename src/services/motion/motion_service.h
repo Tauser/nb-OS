@@ -4,9 +4,10 @@
 #include "../../hal/motion_hal.h"
 #include "../../interfaces/i_emotion_provider.h"
 #include "../../interfaces/i_motion.h"
+#include "../../interfaces/i_motion_state_provider.h"
 #include "../../models/motion_pose.h"
 
-class MotionService : public IMotion {
+class MotionService : public IMotion, public IMotionStateProvider {
 public:
   MotionService(MotionHAL& motionHal, EventBus& eventBus, const IEmotionProvider& emotionProvider);
 
@@ -24,6 +25,10 @@ public:
   void idleSway() override;
   bool applyPose(const MotionPose& pose) override;
 
+  float getCurrentYawDeg() const override;
+  float getCurrentTiltDeg() const override;
+  MotionPoseId getCurrentPoseId() const override;
+
 private:
   void applyEmotionOutput(unsigned long nowMs);
   bool applyPoseInternal(const MotionPose& pose, unsigned long nowMs);
@@ -40,4 +45,10 @@ private:
   unsigned long idleIntervalMs_ = 0;
   float emotionYawScale_ = 1.0f;
   float emotionTiltBiasDeg_ = 0.0f;
+
+  float currentYawDeg_ = 0.0f;
+  float currentTiltDeg_ = 0.0f;
+  MotionPoseId currentPoseId_ = MotionPoseId::Center;
 };
+
+

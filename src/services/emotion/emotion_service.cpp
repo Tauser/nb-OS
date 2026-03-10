@@ -248,9 +248,24 @@ void EmotionService::synthesizeEmotionFromHomeostasis() {
 
   state_.arousal = MathUtils::clamp((homeo_.stimulation * 0.52f) + (homeo_.scores.animated * 0.30f) + (homeo_.scores.sensitive * 0.18f), 0.0f, 1.0f);
 
-  const float positive = (homeo_.scores.social * 0.45f) + (homeo_.scores.calm * 0.35f) + (homeo_.scores.curious * 0.20f);
-  const float negative = (homeo_.scores.sensitive * 0.45f) + (homeo_.scores.bored * 0.30f) + (homeo_.scores.sleepy * 0.25f);
-  state_.valence = MathUtils::clamp(positive - negative, EmotionState::kValenceMin, EmotionState::kValenceMax);
+  const float positive =
+      (homeo_.scores.social * HardwareConfig::Homeostasis::VALENCE_POS_SOCIAL_WEIGHT) +
+      (homeo_.scores.calm * HardwareConfig::Homeostasis::VALENCE_POS_CALM_WEIGHT) +
+      (homeo_.scores.curious * HardwareConfig::Homeostasis::VALENCE_POS_CURIOUS_WEIGHT);
+  const float negative =
+      (homeo_.scores.sensitive * HardwareConfig::Homeostasis::VALENCE_NEG_SENSITIVE_WEIGHT) +
+      (homeo_.scores.bored * HardwareConfig::Homeostasis::VALENCE_NEG_BORED_WEIGHT) +
+      (homeo_.scores.sleepy * HardwareConfig::Homeostasis::VALENCE_NEG_SLEEPY_WEIGHT);
+
+  const float idleCalmBonus = MathUtils::clamp(
+      (static_cast<float>(homeo_.idleMs) / static_cast<float>(HardwareConfig::Homeostasis::BORED_IDLE_MS)) *
+          HardwareConfig::Homeostasis::IDLE_CALM_VALENCE_BONUS_MAX,
+      0.0f,
+      HardwareConfig::Homeostasis::IDLE_CALM_VALENCE_BONUS_MAX);
+
+  state_.valence = MathUtils::clamp(positive - negative + idleCalmBonus,
+                                    EmotionState::kValenceMin,
+                                    EmotionState::kValenceMax);
 
   switch (homeo_.mode) {
     case HomeostasisMode::Sleepy:
@@ -259,7 +274,7 @@ void EmotionService::synthesizeEmotionFromHomeostasis() {
       break;
     case HomeostasisMode::Bored:
       state_.attention = MathUtils::clamp(state_.attention - 0.10f, 0.0f, 1.0f);
-      state_.valence = MathUtils::clamp(state_.valence - 0.08f, EmotionState::kValenceMin, EmotionState::kValenceMax);
+      state_.valence = MathUtils::clamp(state_.valence - HardwareConfig::Homeostasis::BORED_MODE_VALENCE_PENALTY, EmotionState::kValenceMin, EmotionState::kValenceMax);
       break;
     case HomeostasisMode::Animated:
       state_.arousal = MathUtils::clamp(state_.arousal + 0.08f, 0.0f, 1.0f);
@@ -271,7 +286,7 @@ void EmotionService::synthesizeEmotionFromHomeostasis() {
       break;
     case HomeostasisMode::Sensitive:
       state_.arousal = MathUtils::clamp(state_.arousal + 0.05f, 0.0f, 1.0f);
-      state_.valence = MathUtils::clamp(state_.valence - 0.06f, EmotionState::kValenceMin, EmotionState::kValenceMax);
+      state_.valence = MathUtils::clamp(state_.valence - HardwareConfig::Homeostasis::SENSITIVE_MODE_VALENCE_PENALTY, EmotionState::kValenceMin, EmotionState::kValenceMax);
       break;
     case HomeostasisMode::Curious:
       state_.curiosity = MathUtils::clamp(state_.curiosity + 0.06f, 0.0f, 1.0f);
@@ -372,3 +387,4 @@ float EmotionService::stateDelta(const EmotionState& a, const EmotionState& b) c
   sum += absfLocal(a.energy - b.energy);
   return sum;
 }
+

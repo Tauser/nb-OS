@@ -20,7 +20,7 @@ namespace Display {
 
 #if NCOS_SIM_MODE
   // Turbo sim profile for Wokwi stability.
-  constexpr int SPI_WRITE_FREQ = 20000000;
+  constexpr int SPI_WRITE_FREQ = 27000000;
   constexpr int SPI_READ_FREQ = 10000000;
   constexpr bool INVERT = false;
   constexpr bool RGB_ORDER = false;
@@ -33,13 +33,13 @@ namespace Display {
 }
 
 namespace Face {
-  constexpr int LEFT_EYE_X = 120;
-  constexpr int RIGHT_EYE_X = 200;
-  constexpr int EYE_Y = 120;
+  constexpr int LEFT_EYE_X = 116;
+  constexpr int RIGHT_EYE_X = 204;
+  constexpr int EYE_Y = 122;
 #if NCOS_SIM_MODE
-  constexpr int EYE_RADIUS = 32;
+  constexpr int EYE_RADIUS = 36;
 #else
-  constexpr int EYE_RADIUS = 34;
+  constexpr int EYE_RADIUS = 38;
 #endif
 
   constexpr int PUPIL_RADIUS = 8;
@@ -92,6 +92,13 @@ namespace AudioOut {
   constexpr unsigned int NOTIFY_FREQ_A_HZ = 990;
   constexpr unsigned int NOTIFY_FREQ_B_HZ = 1320;
   constexpr unsigned int NOTIFY_TONE_MS = 60;
+}
+namespace Led {
+  constexpr bool RGB_ENABLED = true;
+  constexpr bool ACTIVE_HIGH = true;
+  constexpr unsigned long PWM_FREQUENCY_HZ = 5000;
+  constexpr unsigned int PWM_RESOLUTION_BITS = 8;
+  constexpr unsigned int DEFAULT_INTENSITY = 48;
 }
 namespace IMU {
   constexpr int I2C_ADDRESS = 0x68;
@@ -251,12 +258,19 @@ namespace Emotion {
 }
 
 namespace EmotionOutput {
+  constexpr bool FACE_ENABLE_EXPRESSION_FROM_EMOTION =
+#if NCOS_SIM_MODE
+      false;
+#else
+      true;
+#endif
   constexpr unsigned long FACE_APPLY_INTERVAL_MS = 350;
   constexpr float FACE_ENERGY_LOW = 0.30f;
   constexpr float FACE_VALENCE_NEG = -0.35f;
   constexpr float FACE_CURIOSITY_HIGH = 0.65f;
   constexpr float FACE_VALENCE_POS = 0.35f;
   constexpr unsigned long FACE_EXPRESSION_HOLD_MS = 500;
+  constexpr unsigned long FACE_SWITCH_GUARD_MS = 1200;
   constexpr float FACE_ACTIVITY_AROUSAL_WEIGHT = 0.60f;
   constexpr float FACE_ACTIVITY_ENERGY_WEIGHT = 0.40f;
   constexpr float FACE_ACTIVITY_GAIN = 0.12f;
@@ -312,13 +326,24 @@ namespace Homeostasis {
   constexpr unsigned long LONG_IDLE_MS = 9000;
   constexpr unsigned long BORED_IDLE_MS = 22000;
 
+  constexpr float VALENCE_POS_SOCIAL_WEIGHT = 0.42f;
+  constexpr float VALENCE_POS_CALM_WEIGHT = 0.45f;
+  constexpr float VALENCE_POS_CURIOUS_WEIGHT = 0.13f;
+  constexpr float VALENCE_NEG_SENSITIVE_WEIGHT = 0.40f;
+  constexpr float VALENCE_NEG_BORED_WEIGHT = 0.16f;
+  constexpr float VALENCE_NEG_SLEEPY_WEIGHT = 0.10f;
+  constexpr float IDLE_CALM_VALENCE_BONUS_MAX = 0.10f;
+  constexpr float BORED_MODE_VALENCE_PENALTY = 0.03f;
+  constexpr float SENSITIVE_MODE_VALENCE_PENALTY = 0.04f;
+
   constexpr float ROUTINE_BORED_VALENCE_MAX = -0.18f;
-  constexpr float ROUTINE_SLEEPY_ENERGY_MAX = 0.30f;
+  constexpr float ROUTINE_SLEEPY_ENERGY_MAX = 0.22f;
   constexpr float ROUTINE_CURIOUS_MIN = 0.62f;
   constexpr float ROUTINE_CALM_AROUSAL_MAX = 0.42f;
 }
 namespace Behavior {
   constexpr unsigned long ACTION_MIN_INTERVAL_MS = 220;
+  constexpr unsigned long REPEAT_SUPPRESS_MS = 2400;
   constexpr unsigned long IDLE_EVAL_INTERVAL_MS = 900;
 
   constexpr unsigned long TOUCH_FACE_HOLD_MS = 900;
@@ -345,10 +370,15 @@ namespace Behavior {
   constexpr float SOCIAL_INITIATIVE_BOND_MIN = 0.35f;
 }
 namespace Polish {
-  constexpr unsigned long ATTENTION_HOLD_MS = 1400;
-  constexpr unsigned long ATTENTION_IDLE_RETURN_MS = 3200;
-  constexpr unsigned long ATTENTION_INTERNAL_PULSE_MS = 900;
-  constexpr unsigned long ATTENTION_SCAN_INTERVAL_MS = 5200;
+  constexpr unsigned long ATTENTION_HOLD_MS = 1600;
+  constexpr unsigned long ATTENTION_IDLE_RETURN_MS = 6000;
+  constexpr unsigned long ATTENTION_INTERNAL_HOLD_MS = 1200;
+  constexpr unsigned long ATTENTION_MIN_FOCUS_SWITCH_MS = 5000;
+  constexpr unsigned long ATTENTION_MIN_IDLE_DWELL_MS = 6000;
+  constexpr unsigned long ATTENTION_INTERNAL_PULSE_MS = 15000;
+  constexpr unsigned long ATTENTION_INTERNAL_PULSE_IDLE_EXTRA_MS = 10000;
+  constexpr unsigned long ATTENTION_SCAN_INTERVAL_MS = 28000;
+  constexpr unsigned long ATTENTION_SCAN_IDLE_EXTRA_MS = 12000;
   constexpr unsigned long GAZE_UPDATE_INTERVAL_MS = 550;
   constexpr unsigned long GAZE_COMMAND_COOLDOWN_MS = 700;
 
@@ -356,12 +386,13 @@ namespace Polish {
   constexpr unsigned long MOTION_SYNC_COOLDOWN_MS = 450;
   constexpr unsigned long ROUTINE_UPDATE_INTERVAL_MS = 1000;
   constexpr unsigned long ROUTINE_IDLE_TRIGGER_MS = 6000;
-  constexpr unsigned long IDLE_CALM_MS = 4500;
-  constexpr unsigned long IDLE_CURIOUS_MS = 9000;
-  constexpr unsigned long IDLE_SLEEPY_MS = 16000;
-  constexpr unsigned long IDLE_BORED_MS = 24000;
+  constexpr unsigned long IDLE_CALM_MS = 7000;
+  constexpr unsigned long IDLE_CURIOUS_MS = 15000;
+  constexpr unsigned long IDLE_SLEEPY_MS = 38000;
+  constexpr unsigned long IDLE_BORED_MS = 90000;
   constexpr unsigned long IDLE_AUTONOMY_STEP_MS = 3000;
-  constexpr unsigned long IDLE_ATTENTION_RECOVERY_AFTER_MS = 10000;
+  constexpr unsigned long POST_INTERACTION_AWAKE_MIN_MS = 30000;
+  constexpr unsigned long IDLE_ATTENTION_RECOVERY_AFTER_MS = 18000;
   constexpr unsigned long IDLE_ATTENTION_RECOVERY_INTERVAL_MS = 7000;
 }
 namespace Companion {
@@ -374,7 +405,7 @@ namespace Companion {
   constexpr float MOOD_DECAY_PER_S = 0.05f;
   constexpr float ENGAGEMENT_DECAY_PER_S = 0.10f;
   constexpr float AFFINITY_DECAY_PER_S = 0.02f;
-  constexpr float MOOD_IDLE_NEG_PER_S = 0.028f;
+  constexpr float MOOD_IDLE_NEG_PER_S = 0.010f;
   constexpr float MOOD_SILENCE_STABILITY_GAIN_PER_S = 0.04f;
   constexpr unsigned long MOOD_LONG_IDLE_MS = 10000;
 
@@ -431,7 +462,12 @@ namespace Health {
   constexpr unsigned long STATUS_PUBLISH_INTERVAL_MS = 2000;
   constexpr unsigned long ANOMALY_PUBLISH_COOLDOWN_MS = 3000;
 
+#if NCOS_SIM_MODE
+  // Wokwi timing jitter can exceed the nominal heartbeat cadence.
+  constexpr unsigned long HEARTBEAT_TIMEOUT_MS = 30000;
+#else
   constexpr unsigned long HEARTBEAT_TIMEOUT_MS = 8000;
+#endif
   constexpr unsigned int MIN_RENDER_FPS = 6;
   constexpr unsigned int MAX_EVENT_RATE_PER_S = 250;
   constexpr unsigned int MIN_FREE_HEAP_BYTES = 20000;
@@ -472,6 +508,28 @@ namespace Power {
   constexpr float SLEEP_MOTION_INTERVAL_SCALE = 4.0f;
   constexpr float SLEEP_HEARTBEAT_INTERVAL_SCALE = 5.0f;
 }
+namespace LedStatus {
+  constexpr unsigned int LOW_BATTERY_THRESHOLD_PERCENT = 22;
+}
+namespace LedInteraction {
+  constexpr unsigned long WAKEWORD_HOLD_MS = 220;
+  constexpr unsigned long LISTENING_HOLD_MS = 700;
+  constexpr unsigned long LISTENING_EXTEND_MS = 520;
+  constexpr unsigned long PROCESSING_HOLD_MS = 420;
+  constexpr unsigned long POST_INTENT_PROCESSING_HOLD_MS = 180;
+  constexpr unsigned long SPEAKING_HOLD_MS = 500;
+  constexpr unsigned long INTENT_HOLD_MS = 260;
+  constexpr unsigned long ATTENTION_PULSE_HOLD_MS = 450;
+}
+namespace LedEmotion {
+  constexpr float HAPPY_VALENCE_THRESHOLD = 0.24f;
+  constexpr float SURPRISE_AROUSAL_THRESHOLD = 0.78f;
+  constexpr float SURPRISE_DELTA_THRESHOLD = 0.15f;
+  constexpr unsigned long SURPRISE_FLASH_MS = 220;
+}
+namespace LedOrchestration {
+  constexpr unsigned long TRANSITION_MS = 180;
+}
 namespace System {
 #if NCOS_SIM_MODE && NCOS_SIM_ULTRA
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 8000;
@@ -492,6 +550,28 @@ namespace System {
 }
 
 } // namespace HardwareConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

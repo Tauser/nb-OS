@@ -1,11 +1,17 @@
 #include "face_renderer.h"
+
+#include <Arduino.h>
 #include <math.h>
 
 namespace {
-constexpr int kRenderPadding = 8;
+constexpr int kRenderPadding = 10;
+constexpr float kGeomEpsilon = 0.006f;
+constexpr float kLidEpsilon = 0.004f;
+constexpr float kTiltEpsilon = 0.08f;
+constexpr unsigned long kIdleRefreshMs = 240;
 
-bool isDifferentFloat(float a, float b) {
-  return fabsf(a - b) > 0.01f;
+bool isDifferent(float a, float b, float eps) {
+  return fabsf(a - b) > eps;
 }
 }
 
@@ -14,10 +20,16 @@ FaceRenderer::FaceRenderer(IDisplayPort& displayPort)
 }
 
 bool FaceRenderer::render(const EyeModel& leftEye, const EyeModel& rightEye) {
+  const unsigned long nowMs = millis();
+
   if (!hasLastFrame_) {
     displayPort_.clearFrame();
-  } else if (!hasMeaningfulChange(leftEye, rightEye)) {
-    return false;
+  } else {
+    const bool changed = hasMeaningfulChange(leftEye, rightEye);
+    const bool refreshAged = (nowMs - lastRenderMs_) >= kIdleRefreshMs;
+    if (!changed && !refreshAged) {
+      return false;
+    }
   }
 
   Rect dirty = mergeRect(getEyeDirtyRect(hasLastFrame_ ? lastLeft_ : leftEye),
@@ -30,38 +42,41 @@ bool FaceRenderer::render(const EyeModel& leftEye, const EyeModel& rightEye) {
   }
 
   displayPort_.drawEye(leftEye.centerX,
-                      leftEye.centerY,
-                      leftEye.eyeRadius,
-                      leftEye.openness,
-                      leftEye.tiltDeg,
-                      leftEye.squashY,
-                      leftEye.stretchX,
-                      leftEye.upperLid,
-                      leftEye.lowerLid);
+                       leftEye.centerY,
+                       leftEye.eyeRadius,
+                       leftEye.openness,
+                       leftEye.tiltDeg,
+                       leftEye.squashY,
+                       leftEye.stretchX,
+                       leftEye.roundness,
+                       leftEye.upperLid,
+                       leftEye.lowerLid);
 
   displayPort_.drawEye(rightEye.centerX,
-                      rightEye.centerY,
-                      rightEye.eyeRadius,
-                      rightEye.openness,
-                      rightEye.tiltDeg,
-                      rightEye.squashY,
-                      rightEye.stretchX,
-                      rightEye.upperLid,
-                      rightEye.lowerLid);
+                       rightEye.centerY,
+                       rightEye.eyeRadius,
+                       rightEye.openness,
+                       rightEye.tiltDeg,
+                       rightEye.squashY,
+                       rightEye.stretchX,
+                       rightEye.roundness,
+                       rightEye.upperLid,
+                       rightEye.lowerLid);
 
   displayPort_.present();
 
   lastLeft_ = leftEye;
   lastRight_ = rightEye;
   hasLastFrame_ = true;
+  lastRenderMs_ = nowMs;
   return true;
 }
 
 FaceRenderer::Rect FaceRenderer::getEyeDirtyRect(const EyeModel& eye) const {
   Rect rect;
 
-  const int halfW = static_cast<int>((eye.eyeRadius + 16) * eye.stretchX);
-  const int halfH = static_cast<int>((eye.eyeRadius + 16) * eye.squashY);
+  const int halfW = static_cast<int>((eye.eyeRadius + 18) * eye.stretchX);
+  const int halfH = static_cast<int>((eye.eyeRadius + 18) * eye.squashY);
 
   rect.x = eye.centerX - halfW - kRenderPadding;
   rect.y = eye.centerY - halfH - kRenderPadding;
@@ -90,20 +105,30 @@ FaceRenderer::Rect FaceRenderer::mergeRect(const Rect& a, const Rect& b) const {
 }
 
 bool FaceRenderer::hasMeaningfulChange(const EyeModel& leftEye, const EyeModel& rightEye) const {
-  if (isDifferentFloat(leftEye.openness, lastLeft_.openness)) return true;
-  if (isDifferentFloat(rightEye.openness, lastRight_.openness)) return true;
+  if (leftEye.centerX != lastLeft_.centerX || leftEye.centerY != lastLeft_.centerY) return true;
+  if (rightEye.centerX != lastRight_.centerX || rightEye.centerY != lastRight_.centerY) return true;
+  if (leftEye.eyeRadius != lastLeft_.eyeRadius || rightEye.eyeRadius != lastRight_.eyeRadius) return true;
+  if (leftEye.expression != lastLeft_.expression || rightEye.expression != lastRight_.expression) return true;
 
-  if (isDifferentFloat(leftEye.upperLid, lastLeft_.upperLid)) return true;
-  if (isDifferentFloat(leftEye.lowerLid, lastLeft_.lowerLid)) return true;
-  if (isDifferentFloat(rightEye.upperLid, lastRight_.upperLid)) return true;
-  if (isDifferentFloat(rightEye.lowerLid, lastRight_.lowerLid)) return true;
+  if (isDifferent(leftEye.openness, lastLeft_.openness, kGeomEpsilon)) return true;
+  if (isDifferent(rightEye.openness, lastRight_.openness, kGeomEpsilon)) return true;
 
-  if (isDifferentFloat(leftEye.tiltDeg, lastLeft_.tiltDeg)) return true;
-  if (isDifferentFloat(rightEye.tiltDeg, lastRight_.tiltDeg)) return true;
-  if (isDifferentFloat(leftEye.squashY, lastLeft_.squashY)) return true;
-  if (isDifferentFloat(rightEye.squashY, lastRight_.squashY)) return true;
-  if (isDifferentFloat(leftEye.stretchX, lastLeft_.stretchX)) return true;
-  if (isDifferentFloat(rightEye.stretchX, lastRight_.stretchX)) return true;
+  if (isDifferent(leftEye.upperLid, lastLeft_.upperLid, kLidEpsilon)) return true;
+  if (isDifferent(leftEye.lowerLid, lastLeft_.lowerLid, kLidEpsilon)) return true;
+  if (isDifferent(rightEye.upperLid, lastRight_.upperLid, kLidEpsilon)) return true;
+  if (isDifferent(rightEye.lowerLid, lastRight_.lowerLid, kLidEpsilon)) return true;
+
+  if (isDifferent(leftEye.tiltDeg, lastLeft_.tiltDeg, kTiltEpsilon)) return true;
+  if (isDifferent(rightEye.tiltDeg, lastRight_.tiltDeg, kTiltEpsilon)) return true;
+
+  if (isDifferent(leftEye.squashY, lastLeft_.squashY, kGeomEpsilon)) return true;
+  if (isDifferent(rightEye.squashY, lastRight_.squashY, kGeomEpsilon)) return true;
+
+  if (isDifferent(leftEye.stretchX, lastLeft_.stretchX, kGeomEpsilon)) return true;
+  if (isDifferent(rightEye.stretchX, lastRight_.stretchX, kGeomEpsilon)) return true;
+
+  if (isDifferent(leftEye.roundness, lastLeft_.roundness, kGeomEpsilon)) return true;
+  if (isDifferent(rightEye.roundness, lastRight_.roundness, kGeomEpsilon)) return true;
 
   return false;
 }

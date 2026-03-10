@@ -90,6 +90,18 @@ bool MotionService::applyPose(const MotionPose& pose) {
   return applyPoseInternal(pose, millis());
 }
 
+float MotionService::getCurrentYawDeg() const {
+  return currentYawDeg_;
+}
+
+float MotionService::getCurrentTiltDeg() const {
+  return currentTiltDeg_;
+}
+
+MotionPoseId MotionService::getCurrentPoseId() const {
+  return currentPoseId_;
+}
+
 void MotionService::applyEmotionOutput(unsigned long nowMs) {
   if (nowMs - lastEmotionOutputMs_ < HardwareConfig::EmotionOutput::MOTION_APPLY_INTERVAL_MS) {
     return;
@@ -123,6 +135,10 @@ bool MotionService::applyPoseInternal(const MotionPose& pose, unsigned long nowM
   if (!motionHal_.applyPose(pose)) {
     return false;
   }
+
+  currentYawDeg_ = pose.yawDeg;
+  currentTiltDeg_ = pose.tiltDeg;
+  currentPoseId_ = pose.id;
 
   publishPoseEvent(pose.id, nowMs);
   return true;

@@ -17,6 +17,20 @@
       "left": -14,
       "rotate": 270,
       "attrs": { "slowUpdate": "1" }
+    },
+    {
+      "type": "wokwi-neopixel",
+      "id": "ledLeft",
+      "top": -464.3,
+      "left": -77.8,
+      "attrs": { "color": "#ffffff" }
+    },
+    {
+      "type": "wokwi-neopixel",
+      "id": "ledRight",
+      "top": -464.3,
+      "left": 200.6,
+      "attrs": { "color": "#ffffff" }
     }
   ],
   "connections": [
@@ -26,6 +40,12 @@
     ["esp:47", "tft:MOSI", "blue", ["h124.8", "v-288.01"]],
     ["esp:14", "tft:CS", "orange", ["h191.95", "v-288"]],
     ["esp:48", "tft:D/C", "purple", ["h115.2", "v-268.8"]],
+    ["esp:6", "ledLeft:DIN", "yellow", ["v70", "h-138", "v164"]],
+    ["ledLeft:DOUT", "ledRight:DIN", "yellow", ["h88"]],
+    ["esp:3V3.1", "ledLeft:VCC", "red", ["v22", "h-194", "v222"]],
+    ["esp:GND.2", "ledLeft:GND", "black", ["v44", "h-150", "v190"]],
+    ["esp:3V3.1", "ledRight:VCC", "red", ["v22", "h-10", "v214"]],
+    ["esp:GND.2", "ledRight:GND", "black", ["v44", "h30", "v184"]],
     ["esp:TX", "$serialMonitor:RX", "", []],
     ["esp:RX", "$serialMonitor:TX", "", []]
   ],

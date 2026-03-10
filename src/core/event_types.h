@@ -77,11 +77,15 @@ enum class EventSource {
   PersonaService,
   AffinityService,
   MemoryService,
+  LedService,
   HealthMonitorService,
   SelfTestService,
   SafeModeService,
   OTAService
 };
+
+
+
 
 
 

@@ -9,6 +9,7 @@
 #include "../ai/dialogue/dialogue_engine.h"
 #include "../ai/intent/intent_engine.h"
 #include "../ai/vad/vad_engine.h"
+#include "../config/feature_flags.h"
 #include "../core/config_manager.h"
 #include "../core/diagnostics.h"
 #include "../core/event_bus.h"
@@ -19,11 +20,13 @@
 #include "../drivers/camera/ov2640_driver.h"
 #include "../drivers/display/lovyan_st7789_driver.h"
 #include "../drivers/imu/mpu6050_driver.h"
+#include "../drivers/led/led_driver.h"
 #include "../drivers/motion/feetech_bus_driver.h"
 #include "../drivers/power/power_driver.h"
 #include "../drivers/touch/touch_driver.h"
 #include "../hal/audio_hal.h"
 #include "../hal/display_hal.h"
+#include "../hal/led_hal.h"
 #include "../hal/motion_hal.h"
 #include "../hal/power_hal.h"
 #include "../hal/sensor_hal.h"
@@ -38,6 +41,7 @@
 #include "../services/gesture/gesture_service.h"
 #include "../services/health_monitor/health_monitor_service.h"
 #include "../services/interaction/interaction_service.h"
+#include "../services/led/led_orchestrator_service.h"
 #include "../services/memory/memory_service.h"
 #include "../services/mood/mood_service.h"
 #include "../services/motion/motion_service.h"
@@ -78,6 +82,10 @@ SensorService g_sensorService(g_sensorHal, g_eventBus);
 FeetechBusDriver g_motionDriver;
 MotionHAL g_motionHal(g_motionDriver);
 MotionService g_motionService(g_motionHal, g_eventBus, g_emotionService);
+
+LedDriver g_ledDriver;
+LedHAL g_ledHal(g_ledDriver);
+LedOrchestratorService g_ledOrchestratorService(g_eventBus, g_ledHal);
 
 Max98357aDriver g_audioOutDriver;
 Inmp441Driver g_audioInDriver;
@@ -137,10 +145,18 @@ SystemManager g_systemManager(
 }
 
 void AppFactory::init() {
+  g_faceService.setMotionStateProvider(&g_motionService);
+
   g_interactionService.init();
   g_emotionService.init();
   g_voiceService.init();
   g_powerService.init();
+
+  if (FeatureFlags::LED_ENABLED) {
+    g_ledHal.init();
+    g_ledHal.setMono(HardwareConfig::Led::DEFAULT_INTENSITY);
+    g_ledOrchestratorService.init();
+  }
 
   g_attentionService.init();
   g_gazeService.init();
@@ -173,6 +189,9 @@ void AppFactory::update() {
   const unsigned long now = millis();
 
   g_powerService.update(now);
+  if (FeatureFlags::LED_ENABLED) {
+    g_ledOrchestratorService.update(now);
+  }
   g_systemManager.update();
   g_interactionService.update();
   g_emotionService.update(now);
@@ -203,6 +222,16 @@ void AppFactory::update() {
   g_simTestInputService.update(now);
 #endif
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

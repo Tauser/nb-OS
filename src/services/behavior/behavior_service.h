@@ -106,4 +106,5 @@ private:
   RoutineState routineState_ = RoutineState::Idle;
   uint8_t activePriority_ = 0;
   unsigned long activeUntilMs_ = 0;
+  BehaviorActionId lastActionId_ = BehaviorActionId::None;
 };
