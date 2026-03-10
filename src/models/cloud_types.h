@@ -14,5 +14,8 @@ enum class CloudResultCode : uint8_t {
   Success,
   Failed,
   Timeout,
-  SkippedOffline
+  SkippedOffline,
+  CircuitOpen,
+  AuthFailed,
+  RateLimited
 };

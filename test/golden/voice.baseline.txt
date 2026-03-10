@@ -1,0 +1,2 @@
+[ROUTINE_STATE] state=listening
+[FACE_STATE] expr=happy

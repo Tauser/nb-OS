@@ -367,8 +367,17 @@ void EmotionService::publishEmotionChanged(unsigned long nowMs) {
   Event event;
   event.type = EventType::EVT_EMOTION_CHANGED;
   event.source = EventSource::EmotionService;
-  event.value = static_cast<int>(state_.arousal * 1000.0f);
   event.timestamp = nowMs;
+
+  EmotionChangedPayload payload;
+  payload.valence = state_.valence;
+  payload.arousal = state_.arousal;
+  payload.curiosity = state_.curiosity;
+  payload.attention = state_.attention;
+  payload.bond = state_.bond;
+  payload.energy = state_.energy;
+  event.setEmotionChanged(payload);
+
   eventBus_.publish(event);
 
   lastPublishedState_ = state_;
@@ -387,4 +396,5 @@ float EmotionService::stateDelta(const EmotionState& a, const EmotionState& b) c
   sum += absfLocal(a.energy - b.energy);
   return sum;
 }
+
 

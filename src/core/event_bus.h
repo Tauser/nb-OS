@@ -6,6 +6,7 @@
 class EventBus {
 public:
   static constexpr int kMaxSubscribers = 96;
+  static constexpr int kTraceTypeSlots = 96;
 
   EventBus();
 
@@ -22,7 +23,18 @@ private:
     IEventListener* listener = nullptr;
   };
 
+  struct TraceSlot {
+    uint32_t published = 0;
+    uint32_t handled = 0;
+    uint32_t handlerTotalUs = 0;
+    uint32_t handlerMaxUs = 0;
+  };
+
+  int typeToTraceIndex(EventType type) const;
+  void resetTraceWindow(unsigned long nowMs);
+  void flushTraceWindow(unsigned long nowMs);
+
   SubscriberSlot subscribers_[kMaxSubscribers];
+  TraceSlot trace_[kTraceTypeSlots];
+  unsigned long traceWindowStartMs_ = 0;
 };
-
-

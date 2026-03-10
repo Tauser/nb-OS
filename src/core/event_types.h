@@ -47,7 +47,8 @@ enum class EventType {
   EVT_OTA_STATUS,
   EVT_MOTION_POSE_APPLIED,
   EVT_EMOTION_CHANGED,
-  EVT_BEHAVIOR_ACTION
+  EVT_BEHAVIOR_ACTION,
+  EVT_COMPANION_STATE_CHANGED
 };
 
 enum class EventSource {
@@ -81,8 +82,10 @@ enum class EventSource {
   HealthMonitorService,
   SelfTestService,
   SafeModeService,
-  OTAService
+  OTAService,
+  CompanionStateService
 };
+
 
 
 

@@ -1,0 +1,3 @@
+[INFO] [SENSORS] EVT_TOUCH
+[ROUTINE_STATE] state=resume
+[FACE_STATE] expr=happy

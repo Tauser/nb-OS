@@ -1,0 +1,6 @@
+# Scenario: idle
+monitor on
+idle
+idle
+idle
+idle

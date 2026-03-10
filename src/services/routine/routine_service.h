@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/event_bus.h"
+#include "../../interfaces/i_action_orchestrator.h"
 #include "../../interfaces/i_emotion_provider.h"
 #include "../../interfaces/i_event_listener.h"
 #include "../../interfaces/i_face_controller.h"
@@ -12,6 +13,7 @@ class RoutineService : public IEventListener {
 public:
   RoutineService(EventBus& eventBus,
                  const IEmotionProvider& emotionProvider,
+                 IActionOrchestrator& actionOrchestrator,
                  IFaceController& faceController,
                  IMotion& motion);
 
@@ -35,9 +37,17 @@ private:
   IdleAutonomyStage stageForIdle(unsigned long idleForMs) const;
   void applyStage(IdleAutonomyStage stage, unsigned long nowMs, bool stageChanged);
   void markInteraction(unsigned long nowMs);
+  bool submitRoutineAction(ExpressionType expression,
+                           EyeAnimPriority facePriority,
+                           unsigned long holdMs,
+                           ActionMotionCommand motion,
+                           uint8_t priority,
+                           const char* reason,
+                           unsigned long nowMs);
 
   EventBus& eventBus_;
   const IEmotionProvider& emotionProvider_;
+  IActionOrchestrator& actionOrchestrator_;
   IFaceController& faceController_;
   IMotion& motion_;
 

@@ -89,9 +89,13 @@ void SocialTimingService::onEvent(const Event& event) {
       focus_ = static_cast<AttentionFocus>(event.value);
       break;
 
-    case EventType::EVT_MOOD_CHANGED:
-      mood_ = MathUtils::clamp((static_cast<float>(event.value) / 1000.0f + 1.0f) * 0.5f, 0.0f, 1.0f);
+    case EventType::EVT_MOOD_CHANGED: {
+      const float valence = event.hasTypedPayload(EventPayloadKind::MoodChanged)
+                                ? event.payload.moodChanged.valence
+                                : (static_cast<float>(event.value) / 1000.0f);
+      mood_ = MathUtils::clamp((valence + 1.0f) * 0.5f, 0.0f, 1.0f);
       break;
+    }
 
     case EventType::EVT_MEMORY_UPDATED:
       memorySignal_ = MathUtils::clamp(static_cast<float>(event.value) / HardwareConfig::Companion::SOCIAL_TIMING_MEMORY_SIGNAL_NORM, 0.0f, 1.0f);
@@ -122,3 +126,4 @@ void SocialTimingService::publish(unsigned long nowMs) {
 
   lastPublished_ = state_;
 }
+

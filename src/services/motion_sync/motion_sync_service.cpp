@@ -35,8 +35,11 @@ void MotionSyncService::onEvent(const Event& event) {
       lastSyncMs_ = nowMs;
       break;
 
-    case EventType::EVT_EMOTION_CHANGED:
-      if (event.value > 700) {
+    case EventType::EVT_EMOTION_CHANGED: {
+      const float arousal = event.hasTypedPayload(EventPayloadKind::EmotionChanged)
+                                ? event.payload.emotionChanged.arousal
+                                : (static_cast<float>(event.value) / 1000.0f);
+      if (arousal > 0.70f) {
         if (yawLeft_) {
           motion_.yawLeft();
         } else {
@@ -46,8 +49,10 @@ void MotionSyncService::onEvent(const Event& event) {
         lastSyncMs_ = nowMs;
       }
       break;
+    }
 
     default:
       break;
   }
 }
+

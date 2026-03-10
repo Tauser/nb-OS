@@ -31,7 +31,7 @@ float intervalScaleForMode(PowerMode mode, float normalScale, float lowScale, fl
       return normalScale;
   }
 }
-}
+} // namespace
 
 SystemManager::SystemManager(EventBus& eventBus,
                              Diagnostics& diagnostics,
@@ -121,6 +121,13 @@ void SystemManager::update() {
                            HardwareConfig::Power::LOW_POWER_MOTION_INTERVAL_SCALE,
                            HardwareConfig::Power::SLEEP_MOTION_INTERVAL_SCALE));
 
+  unsigned long visionInterval = HardwareConfig::System::VISION_POLL_INTERVAL_MS;
+  if (powerMode_ == PowerMode::LowPower) {
+    visionInterval = scaledInterval(visionInterval, HardwareConfig::Power::LOW_POWER_SENSOR_INTERVAL_SCALE);
+  } else if (powerMode_ == PowerMode::Sleep) {
+    visionInterval = scaledInterval(visionInterval, HardwareConfig::Power::SLEEP_SENSOR_INTERVAL_SCALE);
+  }
+
   unsigned long heartbeatInterval = scaledInterval(
       cfg.heartbeatIntervalMs,
       intervalScaleForMode(powerMode_,
@@ -162,7 +169,8 @@ void SystemManager::update() {
   }
 
   const bool cameraAllowed = (powerMode_ != PowerMode::Sleep) && !safeMode_;
-  if (FeatureFlags::CAMERA_ENABLED && cameraAllowed) {
+  if (FeatureFlags::CAMERA_ENABLED && cameraAllowed && now - lastVisionPollMs_ >= visionInterval) {
+    lastVisionPollMs_ = now;
     visionService_.update();
     publishEvent(EventType::CameraFrameSampled, EventSource::VisionService);
   }
@@ -240,4 +248,3 @@ unsigned long SystemManager::scaledInterval(unsigned long baseMs, float scale) c
   const unsigned long scaled = static_cast<unsigned long>(static_cast<float>(baseMs) * scale);
   return (scaled == 0UL) ? 1UL : scaled;
 }
-

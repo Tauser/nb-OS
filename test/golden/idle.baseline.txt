@@ -1,0 +1,5 @@
+[ROUTINE_STATE] state=calm
+[ROUTINE_STATE] state=curious
+[ROUTINE_STATE] state=sleepy
+[FACE_STATE] expr=curious
+[FACE_STATE] expr=alert

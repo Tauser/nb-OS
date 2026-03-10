@@ -34,6 +34,7 @@
 #include "../services/affinity/affinity_service.h"
 #include "../services/attention/attention_service.h"
 #include "../services/behavior/behavior_service.h"
+#include "../services/companion/companion_state_service.h"
 #include "../services/emotion/emotion_service.h"
 #include "../services/engagement/engagement_service.h"
 #include "../services/face/face_service.h"
@@ -46,6 +47,7 @@
 #include "../services/mood/mood_service.h"
 #include "../services/motion/motion_service.h"
 #include "../services/motion_sync/motion_sync_service.h"
+#include "../services/orchestrator/action_orchestrator_service.h"
 #include "../services/ota/ota_service.h"
 #include "../services/persona/persona_service.h"
 #include "../services/power/power_service.h"
@@ -103,7 +105,8 @@ AttentionService g_attentionService(g_eventBus);
 GazeService g_gazeService(g_eventBus, g_faceService, g_motionService);
 GestureService g_gestureService(g_eventBus, g_faceService, g_motionService);
 MotionSyncService g_motionSyncService(g_eventBus, g_faceService, g_motionService);
-RoutineService g_routineService(g_eventBus, g_emotionService, g_faceService, g_motionService);
+ActionOrchestratorService g_actionOrchestratorService(g_faceService, g_motionService);
+RoutineService g_routineService(g_eventBus, g_emotionService, g_actionOrchestratorService, g_faceService, g_motionService);
 HealthMonitorService g_healthMonitorService(g_eventBus, g_diagnostics);
 
 AffinityService g_affinityService(g_eventBus);
@@ -112,8 +115,9 @@ MemoryService g_memoryService(g_eventBus, g_storageManager);
 MoodService g_moodService(g_eventBus, g_emotionService);
 PersonaService g_personaService(g_eventBus);
 SocialTimingService g_socialTimingService(g_eventBus, g_personaService);
+CompanionStateService g_companionStateService(g_eventBus, g_socialTimingService);
 
-SafeModeService g_safeModeService(g_eventBus, g_diagnostics, g_motionService);
+SafeModeService g_safeModeService(g_eventBus, g_diagnostics, g_storageManager, g_motionService);
 SelfTestService g_selfTestService(
     g_eventBus,
     g_diagnostics,
@@ -126,7 +130,15 @@ OTAService g_otaService(g_eventBus, g_diagnostics, g_storageManager, g_configMan
 
 CloudRouter g_cloudRouter(g_eventBus);
 
-BehaviorService g_behaviorService(g_eventBus, g_emotionService, g_personaService, g_socialTimingService, g_faceService, g_motionService, g_diagnostics);
+BehaviorService g_behaviorService(g_eventBus,
+                                  g_emotionService,
+                                  g_companionStateService,
+                                  g_personaService,
+                                  g_socialTimingService,
+                                  g_actionOrchestratorService,
+                                  g_faceService,
+                                  g_motionService,
+                                  g_diagnostics);
 InteractionService g_interactionService(g_eventBus, g_diagnostics);
 
 #if NCOS_SIM_MODE
@@ -162,6 +174,7 @@ void AppFactory::init() {
   g_gazeService.init();
   g_gestureService.init();
   g_motionSyncService.init();
+  g_actionOrchestratorService.init();
   g_routineService.init();
   g_healthMonitorService.init();
 
@@ -171,6 +184,7 @@ void AppFactory::init() {
   g_moodService.init();
   g_personaService.init();
   g_socialTimingService.init();
+  g_companionStateService.init();
   g_behaviorService.init();
 
   g_safeModeService.init();
@@ -201,6 +215,7 @@ void AppFactory::update() {
   g_gazeService.update(now);
   g_gestureService.update(now);
   g_motionSyncService.update(now);
+  g_actionOrchestratorService.update(now);
   g_routineService.update(now);
   g_healthMonitorService.update(now);
 
@@ -210,6 +225,7 @@ void AppFactory::update() {
   g_moodService.update(now);
   g_personaService.update(now);
   g_socialTimingService.update(now);
+  g_companionStateService.update(now);
   g_behaviorService.update(now);
 
   g_selfTestService.update(now);
@@ -222,18 +238,6 @@ void AppFactory::update() {
   g_simTestInputService.update(now);
 #endif
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

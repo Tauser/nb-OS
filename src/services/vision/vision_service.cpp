@@ -5,18 +5,32 @@
 #include "../../models/cloud_types.h"
 #include "../../models/event.h"
 
+#include <Arduino.h>
+
+#ifndef NCOS_SIM_MODE
+#define NCOS_SIM_MODE 0
+#endif
+
 VisionService::VisionService(ICameraPort& cameraPort, EventBus& eventBus)
     : cameraPort_(cameraPort), eventBus_(eventBus) {}
 
 void VisionService::init() {
   cameraPort_.init();
+  metricsWindowStartMs_ = millis();
 }
 
 void VisionService::update() {
   VisionSnapshot snapshot;
   if (!cameraPort_.sampleFrame(snapshot) || !snapshot.valid) {
+    metricsCaptureFail_++;
+    const unsigned long nowMs = millis();
+    if (nowMs - metricsWindowStartMs_ >= HardwareConfig::Vision::METRICS_WINDOW_MS) {
+      emitMetrics(nowMs);
+    }
     return;
   }
+
+  updateMetrics(snapshot);
 
   const unsigned long nowMs = snapshot.timestampMs;
   publishVisionEvent(EventType::EVT_VISION_SNAPSHOT, static_cast<int>(snapshot.avgLuma), nowMs);
@@ -33,6 +47,10 @@ void VisionService::update() {
     publishVisionEvent(EventType::EVT_VISION_MOTION, static_cast<int>(snapshot.motionScore), nowMs);
     requestCloud(CloudRequestType::VisionMotion, nowMs);
     lastVisionEventMs_ = nowMs;
+  }
+
+  if (nowMs - metricsWindowStartMs_ >= HardwareConfig::Vision::METRICS_WINDOW_MS) {
+    emitMetrics(nowMs);
   }
 }
 
@@ -62,4 +80,42 @@ void VisionService::requestCloud(CloudRequestType requestType, unsigned long now
   eventBus_.publish(event);
 
   lastCloudRequestMs_ = nowMs;
+}
+
+void VisionService::updateMetrics(const VisionSnapshot& snapshot) {
+  metricsFrames_++;
+  if (snapshot.realBackend) {
+    metricsRealFrames_++;
+  } else {
+    metricsSyntheticFrames_++;
+  }
+
+  metricsCaptureTotalUs_ += snapshot.captureUs;
+  if (snapshot.captureUs > metricsCaptureMaxUs_) {
+    metricsCaptureMaxUs_ = snapshot.captureUs;
+  }
+}
+
+void VisionService::emitMetrics(unsigned long nowMs) {
+  const uint32_t elapsedMs = (nowMs > metricsWindowStartMs_) ? (nowMs - metricsWindowStartMs_) : 1U;
+  const uint32_t fps100 = (metricsFrames_ * 100000U) / elapsedMs;
+  const uint32_t avgCaptureUs = (metricsFrames_ > 0U) ? (metricsCaptureTotalUs_ / metricsFrames_) : 0U;
+
+  Serial.printf("[VISION_METRICS] frames=%lu fps=%lu.%02lu real=%lu synthetic=%lu fail=%lu avg_us=%lu max_us=%lu\n",
+                static_cast<unsigned long>(metricsFrames_),
+                static_cast<unsigned long>(fps100 / 100U),
+                static_cast<unsigned long>(fps100 % 100U),
+                static_cast<unsigned long>(metricsRealFrames_),
+                static_cast<unsigned long>(metricsSyntheticFrames_),
+                static_cast<unsigned long>(metricsCaptureFail_),
+                static_cast<unsigned long>(avgCaptureUs),
+                static_cast<unsigned long>(metricsCaptureMaxUs_));
+
+  metricsWindowStartMs_ = nowMs;
+  metricsFrames_ = 0;
+  metricsRealFrames_ = 0;
+  metricsSyntheticFrames_ = 0;
+  metricsCaptureFail_ = 0;
+  metricsCaptureTotalUs_ = 0;
+  metricsCaptureMaxUs_ = 0;
 }

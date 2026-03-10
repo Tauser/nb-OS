@@ -89,7 +89,12 @@ void LedOrchestratorService::onEvent(const Event& event) {
       break;
 
     case EventType::EVT_POWER_STATUS:
-      batteryPercent_ = MathUtils::clamp(event.value, 0, 100);
+      if (event.hasTypedPayload(EventPayloadKind::PowerStatus)) {
+        batteryPercent_ = MathUtils::clamp(event.payload.powerStatus.batteryPercent, 0, 100);
+        charging_ = event.payload.powerStatus.charging;
+      } else {
+        batteryPercent_ = MathUtils::clamp(event.value, 0, 100);
+      }
       break;
 
     case EventType::EVT_POWER_MODE_CHANGED:
@@ -171,7 +176,11 @@ void LedOrchestratorService::onEvent(const Event& event) {
       break;
 
     case EventType::EVT_MOOD_CHANGED:
-      moodValence_ = MathUtils::clamp(static_cast<float>(event.value) / 1000.0f, -1.0f, 1.0f);
+      if (event.hasTypedPayload(EventPayloadKind::MoodChanged)) {
+        moodValence_ = MathUtils::clamp(event.payload.moodChanged.valence, -1.0f, 1.0f);
+      } else {
+        moodValence_ = MathUtils::clamp(static_cast<float>(event.value) / 1000.0f, -1.0f, 1.0f);
+      }
       break;
 
     case EventType::EVT_MOOD_PROFILE_CHANGED:
@@ -180,7 +189,11 @@ void LedOrchestratorService::onEvent(const Event& event) {
 
     case EventType::EVT_EMOTION_CHANGED: {
       const float prevArousal = arousal_;
-      arousal_ = MathUtils::clamp(static_cast<float>(event.value) / 1000.0f, 0.0f, 1.0f);
+      if (event.hasTypedPayload(EventPayloadKind::EmotionChanged)) {
+        arousal_ = MathUtils::clamp(event.payload.emotionChanged.arousal, 0.0f, 1.0f);
+      } else {
+        arousal_ = MathUtils::clamp(static_cast<float>(event.value) / 1000.0f, 0.0f, 1.0f);
+      }
       if (arousal_ >= HardwareConfig::LedEmotion::SURPRISE_AROUSAL_THRESHOLD &&
           (arousal_ - prevArousal) >= HardwareConfig::LedEmotion::SURPRISE_DELTA_THRESHOLD) {
         surpriseUntilMs_ = nowMs + HardwareConfig::LedEmotion::SURPRISE_FLASH_MS;
@@ -200,7 +213,7 @@ LedOrchestratorService::StatusState LedOrchestratorService::resolveStatusState()
   if (safeMode_) {
     return StatusState::SafeMode;
   }
-  if (otaStage_ == OtaStage::Applying) {
+  if (otaStage_ == OtaStage::Applying || otaStage_ == OtaStage::Validating || otaStage_ == OtaStage::Precheck || otaStage_ == OtaStage::Writing || otaStage_ == OtaStage::Verifying) {
     return StatusState::UpdateInProgress;
   }
   if (batteryPercent_ <= static_cast<int>(HardwareConfig::LedStatus::LOW_BATTERY_THRESHOLD_PERCENT)) {
@@ -439,3 +452,4 @@ void LedOrchestratorService::driveSmooth(const RgbTarget& target, unsigned long 
   ledHal_.setRgb8(r, g, b);
   ledHal_.setMono(channelMax(r, g, b));
 }
+

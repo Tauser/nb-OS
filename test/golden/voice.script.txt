@@ -1,0 +1,4 @@
+# Scenario: voice
+voice
+intent hello
+voice

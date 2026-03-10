@@ -9,7 +9,12 @@ enum class OtaStage : uint8_t {
   Applying,
   Applied,
   Blocked,
-  Failed
+  Failed,
+  Validating,
+  Precheck,
+  Writing,
+  Verifying,
+  Rollback
 };
 
 struct OtaState {

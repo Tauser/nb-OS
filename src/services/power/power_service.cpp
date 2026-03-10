@@ -117,8 +117,15 @@ void PowerService::publishStatusEvent(unsigned long nowMs) {
   Event event;
   event.type = EventType::EVT_POWER_STATUS;
   event.source = EventSource::PowerService;
-  event.value = state_.batteryPercent;
   event.timestamp = nowMs;
+
+  PowerStatusPayload payload;
+  payload.batteryPercent = state_.batteryPercent;
+  payload.charging = state_.charging;
+  payload.mode = static_cast<int>(state_.mode);
+  payload.batteryMillivolts = state_.batteryMillivolts;
+  event.setPowerStatus(payload);
+
   eventBus_.publish(event);
 
   lastStatusPublishMs_ = nowMs;
@@ -141,3 +148,4 @@ void PowerService::publishModeEvent(PowerMode mode, unsigned long nowMs) {
   event.timestamp = nowMs;
   eventBus_.publish(event);
 }
+

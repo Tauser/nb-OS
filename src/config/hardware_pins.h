@@ -30,9 +30,42 @@ namespace Display {
 }
 
 namespace Camera {
-  // OV2640 is connected through board camera connector.
+#if NCOS_PIN_PROFILE_SIM
   constexpr int PWDN = -1;
   constexpr int RESET = -1;
+  constexpr int XCLK = -1;
+  constexpr int SIOD = -1;
+  constexpr int SIOC = -1;
+  constexpr int Y9 = -1;
+  constexpr int Y8 = -1;
+  constexpr int Y7 = -1;
+  constexpr int Y6 = -1;
+  constexpr int Y5 = -1;
+  constexpr int Y4 = -1;
+  constexpr int Y3 = -1;
+  constexpr int Y2 = -1;
+  constexpr int VSYNC = -1;
+  constexpr int HREF = -1;
+  constexpr int PCLK = -1;
+#else
+  // Freenove ESP32-S3-WROOM CAM N16R8 default OV2640 bus mapping.
+  constexpr int PWDN = -1;
+  constexpr int RESET = -1;
+  constexpr int XCLK = 15;
+  constexpr int SIOD = 4;
+  constexpr int SIOC = 5;
+  constexpr int Y9 = 16;
+  constexpr int Y8 = 17;
+  constexpr int Y7 = 18;
+  constexpr int Y6 = 12;
+  constexpr int Y5 = 10;
+  constexpr int Y4 = 8;
+  constexpr int Y3 = 9;
+  constexpr int Y2 = 11;
+  constexpr int VSYNC = 6;
+  constexpr int HREF = 7;
+  constexpr int PCLK = 13;
+#endif
 }
 
 namespace AudioIn {
@@ -85,6 +118,7 @@ namespace Power {
 #endif
 }
 } // namespace HardwarePins
+
 
 
 

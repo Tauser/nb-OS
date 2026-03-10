@@ -128,7 +128,17 @@ void HealthMonitorService::publishStatus(unsigned long nowMs) {
   Event status;
   status.type = EventType::EVT_HEALTH_STATUS;
   status.source = EventSource::HealthMonitorService;
-  status.value = static_cast<int>(snapshot_.healthScore);
+
+  HealthStatusPayload payload{};
+  payload.healthScore = static_cast<int>(snapshot_.healthScore);
+  payload.primaryAnomaly = static_cast<int>(snapshot_.primaryAnomaly);
+  payload.degraded = snapshot_.degraded;
+  payload.heartbeatOk = snapshot_.heartbeatOk;
+  payload.renderOk = snapshot_.renderOk;
+  payload.memoryOk = snapshot_.memoryOk;
+  payload.eventLoadOk = snapshot_.eventLoadOk;
+  status.setHealthStatus(payload);
+
   status.timestamp = nowMs;
   eventBus_.publish(status);
 }
@@ -158,3 +168,5 @@ void HealthMonitorService::publishAnomaly(unsigned long nowMs, HealthAnomalyCode
       break;
   }
 }
+
+

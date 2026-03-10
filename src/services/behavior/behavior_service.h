@@ -2,6 +2,8 @@
 
 #include "../../core/diagnostics.h"
 #include "../../core/event_bus.h"
+#include "../../interfaces/i_action_orchestrator.h"
+#include "../../interfaces/i_companion_state_provider.h"
 #include "../../interfaces/i_emotion_provider.h"
 #include "../../interfaces/i_event_listener.h"
 #include "../../interfaces/i_face_controller.h"
@@ -19,8 +21,10 @@ class BehaviorService : public IEventListener {
 public:
   BehaviorService(EventBus& eventBus,
                   const IEmotionProvider& emotionProvider,
+                  const ICompanionStateProvider& companionStateProvider,
                   const IPersonaProvider& personaProvider,
                   const ISocialTimingProvider& socialTimingProvider,
+                  IActionOrchestrator& actionOrchestrator,
                   IFaceController& faceController,
                   IMotion& motion,
                   Diagnostics& diagnostics);
@@ -79,13 +83,16 @@ private:
   BehaviorAction actionFromAutonomy(unsigned long nowMs);
   BehaviorAction actionFromIntent(LocalIntent intent);
   bool tryApplyAction(const BehaviorAction& action, unsigned long nowMs);
+  bool submitAction(const BehaviorAction& action, unsigned long nowMs);
   void applyMotion(MotionCommand command);
   void publishActionEvent(BehaviorActionId actionId, unsigned long nowMs);
 
   EventBus& eventBus_;
   const IEmotionProvider& emotionProvider_;
+  const ICompanionStateProvider& companionStateProvider_;
   const IPersonaProvider& personaProvider_;
   const ISocialTimingProvider& socialTimingProvider_;
+  IActionOrchestrator& actionOrchestrator_;
   IFaceController& faceController_;
   IMotion& motion_;
   Diagnostics& diagnostics_;

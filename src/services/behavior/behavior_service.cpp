@@ -1,5 +1,6 @@
 #include "behavior_service.h"
 
+#include "../../config/feature_flags.h"
 #include "../../config/hardware_config.h"
 #include "../../models/event.h"
 #include "../../utils/math_utils.h"
@@ -15,15 +16,19 @@ const char* kBehaviorEventLog = "[BEHAVIOR] action";
 
 BehaviorService::BehaviorService(EventBus& eventBus,
                                  const IEmotionProvider& emotionProvider,
+                                 const ICompanionStateProvider& companionStateProvider,
                                  const IPersonaProvider& personaProvider,
                                  const ISocialTimingProvider& socialTimingProvider,
+                                 IActionOrchestrator& actionOrchestrator,
                                  IFaceController& faceController,
                                  IMotion& motion,
                                  Diagnostics& diagnostics)
     : eventBus_(eventBus),
       emotionProvider_(emotionProvider),
+      companionStateProvider_(companionStateProvider),
       personaProvider_(personaProvider),
       socialTimingProvider_(socialTimingProvider),
+      actionOrchestrator_(actionOrchestrator),
       faceController_(faceController),
       motion_(motion),
       diagnostics_(diagnostics) {}
@@ -39,14 +44,17 @@ void BehaviorService::init() {
   eventBus_.subscribe(EventType::EVT_VOICE_END, this);
   eventBus_.subscribe(EventType::EVT_EMOTION_CHANGED, this);
   eventBus_.subscribe(EventType::EVT_INTENT_DETECTED, this);
-  eventBus_.subscribe(EventType::EVT_MOOD_CHANGED, this);
-  eventBus_.subscribe(EventType::EVT_MOOD_PROFILE_CHANGED, this);
-  eventBus_.subscribe(EventType::EVT_AFFINITY_CHANGED, this);
-  eventBus_.subscribe(EventType::EVT_PREFERENCE_UPDATED, this);
   eventBus_.subscribe(EventType::EVT_PERSONA_UPDATED, this);
-  eventBus_.subscribe(EventType::EVT_ROUTINE_STATE_CHANGED, this);
   eventBus_.subscribe(EventType::EVT_POWER_STATUS, this);
   eventBus_.subscribe(EventType::EVT_CHARGING_STATE_CHANGED, this);
+
+  if (!FeatureFlags::COMPANION_AGGREGATE_ENABLED) {
+    eventBus_.subscribe(EventType::EVT_MOOD_CHANGED, this);
+    eventBus_.subscribe(EventType::EVT_MOOD_PROFILE_CHANGED, this);
+    eventBus_.subscribe(EventType::EVT_AFFINITY_CHANGED, this);
+    eventBus_.subscribe(EventType::EVT_PREFERENCE_UPDATED, this);
+    eventBus_.subscribe(EventType::EVT_ROUTINE_STATE_CHANGED, this);
+  }
 
   const unsigned long nowMs = millis();
   context_.lastInteractionMs = nowMs;
@@ -70,11 +78,24 @@ void BehaviorService::update(unsigned long nowMs) {
   personaIntensity_ = persona.intensity;
   personaSociability_ = persona.sociability;
 
-  const SocialTimingState& socialTiming = socialTimingProvider_.getState();
-  socialResponsiveness_ = socialTiming.responsiveness;
-  socialInitiative_ = socialTiming.initiative;
-  socialPersistence_ = socialTiming.persistence;
-  socialPauseFactor_ = socialTiming.pauseFactor;
+  if (FeatureFlags::COMPANION_AGGREGATE_ENABLED) {
+    const CompanionState& companion = companionStateProvider_.getState();
+    moodValence_ = companion.moodValence;
+    moodProfile_ = companion.moodProfile;
+    affinityBond_ = companion.affinityBond;
+    preferredFocus_ = companion.attentionFocus;
+    routineState_ = companion.routineState;
+    socialResponsiveness_ = companion.socialResponsiveness;
+    socialInitiative_ = companion.socialInitiative;
+    socialPersistence_ = companion.socialPersistence;
+    socialPauseFactor_ = companion.socialPauseFactor;
+  } else {
+    const SocialTimingState& socialTiming = socialTimingProvider_.getState();
+    socialResponsiveness_ = socialTiming.responsiveness;
+    socialInitiative_ = socialTiming.initiative;
+    socialPersistence_ = socialTiming.persistence;
+    socialPauseFactor_ = socialTiming.pauseFactor;
+  }
 
   bool applied = tryApplyAction(actionFromEmotion(nowMs), nowMs);
   if (!applied) {
@@ -87,33 +108,39 @@ void BehaviorService::onEvent(const Event& event) {
     return;
   }
 
-  if (event.type == EventType::EVT_MOOD_CHANGED) {
-    moodValence_ = static_cast<float>(event.value) / 1000.0f;
-    return;
-  }
+  if (!FeatureFlags::COMPANION_AGGREGATE_ENABLED) {
+    if (event.type == EventType::EVT_MOOD_CHANGED) {
+      if (event.hasTypedPayload(EventPayloadKind::MoodChanged)) {
+        moodValence_ = event.payload.moodChanged.valence;
+      } else {
+        moodValence_ = static_cast<float>(event.value) / 1000.0f;
+      }
+      return;
+    }
 
-  if (event.type == EventType::EVT_MOOD_PROFILE_CHANGED) {
-    moodProfile_ = static_cast<MoodProfile>(event.value);
-    return;
-  }
+    if (event.type == EventType::EVT_MOOD_PROFILE_CHANGED) {
+      moodProfile_ = static_cast<MoodProfile>(event.value);
+      return;
+    }
 
-  if (event.type == EventType::EVT_AFFINITY_CHANGED) {
-    affinityBond_ = static_cast<float>(event.value) / 1000.0f;
-    return;
-  }
+    if (event.type == EventType::EVT_AFFINITY_CHANGED) {
+      affinityBond_ = static_cast<float>(event.value) / 1000.0f;
+      return;
+    }
 
-  if (event.type == EventType::EVT_PREFERENCE_UPDATED) {
-    preferredFocus_ = static_cast<AttentionFocus>(event.value);
-    return;
+    if (event.type == EventType::EVT_PREFERENCE_UPDATED) {
+      preferredFocus_ = static_cast<AttentionFocus>(event.value);
+      return;
+    }
+
+    if (event.type == EventType::EVT_ROUTINE_STATE_CHANGED) {
+      routineState_ = static_cast<RoutineState>(event.value);
+      return;
+    }
   }
 
   if (event.type == EventType::EVT_PERSONA_UPDATED) {
     personaTone_ = static_cast<PersonaTone>(event.value);
-    return;
-  }
-
-  if (event.type == EventType::EVT_ROUTINE_STATE_CHANGED) {
-    routineState_ = static_cast<RoutineState>(event.value);
     return;
   }
 
@@ -145,6 +172,7 @@ void BehaviorService::onEvent(const Event& event) {
 
   tryApplyAction(actionFromEvent(event), nowMs);
 }
+
 BehaviorService::BehaviorAction BehaviorService::actionFromEvent(const Event& event) {
   BehaviorAction action;
 
@@ -452,6 +480,7 @@ BehaviorService::BehaviorAction BehaviorService::actionFromAutonomy(unsigned lon
 
   return action;
 }
+
 BehaviorService::BehaviorAction BehaviorService::actionFromIntent(LocalIntent intent) {
   BehaviorAction action;
 
@@ -538,10 +567,8 @@ bool BehaviorService::tryApplyAction(const BehaviorAction& action, unsigned long
     context_.nextYawLeft = !context_.nextYawLeft;
   }
 
-  faceController_.requestExpression(action.expression, action.facePriority, action.faceHoldMs);
-  applyMotion(action.motion);
-  if (action.enableIdleSway) {
-    motion_.idleSway();
+  if (!submitAction(action, nowMs)) {
+    return false;
   }
 
   if (action.id == BehaviorActionId::IdleScan ||
@@ -564,6 +591,137 @@ bool BehaviorService::tryApplyAction(const BehaviorAction& action, unsigned long
   #if !NCOS_SIM_MODE
   diagnostics_.logInfo(kBehaviorEventLog);
   #endif
+  return true;
+}
+
+bool BehaviorService::submitAction(const BehaviorAction& action, unsigned long nowMs) {
+  if (FeatureFlags::ACTION_ORCHESTRATOR_ENABLED) {
+    const char* reason = "none";
+    switch (action.id) {
+      case BehaviorActionId::TouchAck:
+        reason = "touch_ack";
+        break;
+      case BehaviorActionId::TiltObserve:
+        reason = "tilt_observe";
+        break;
+      case BehaviorActionId::ShakeRecover:
+        reason = "shake_recover";
+        break;
+      case BehaviorActionId::FallRecover:
+        reason = "fall_recover";
+        break;
+      case BehaviorActionId::VoiceAttend:
+        reason = "voice_attend";
+        break;
+      case BehaviorActionId::EmotionCalm:
+        reason = "emotion_calm";
+        break;
+      case BehaviorActionId::EmotionCurious:
+        reason = "emotion_curious";
+        break;
+      case BehaviorActionId::EmotionPositive:
+        reason = "emotion_positive";
+        break;
+      case BehaviorActionId::EmotionLowEnergy:
+        reason = "emotion_low_energy";
+        break;
+      case BehaviorActionId::EmotionLowMood:
+        reason = "emotion_low_mood";
+        break;
+      case BehaviorActionId::EmotionHighArousal:
+        reason = "emotion_high_arousal";
+        break;
+      case BehaviorActionId::IdleScan:
+        reason = "idle_scan";
+        break;
+      case BehaviorActionId::IdleObserve:
+        reason = "idle_observe";
+        break;
+      case BehaviorActionId::SocialCheckIn:
+        reason = "social_check_in";
+        break;
+      case BehaviorActionId::IntentHello:
+        reason = "intent_hello";
+        break;
+      case BehaviorActionId::IntentStatus:
+        reason = "intent_status";
+        break;
+      case BehaviorActionId::IntentSleep:
+        reason = "intent_sleep";
+        break;
+      case BehaviorActionId::IntentWake:
+        reason = "intent_wake";
+        break;
+      case BehaviorActionId::IntentPhoto:
+        reason = "intent_photo";
+        break;
+      case BehaviorActionId::None:
+      default:
+        break;
+    }
+
+    ActionIntent faceIntent;
+    faceIntent.target = ActionTargetChannel::Face;
+    faceIntent.priority = action.priority;
+    faceIntent.holdMs = action.faceHoldMs;
+    faceIntent.source = EventSource::BehaviorService;
+    faceIntent.reason = reason;
+    faceIntent.face.expression = action.expression;
+    faceIntent.face.animPriority = action.facePriority;
+
+    const bool faceAccepted = actionOrchestrator_.submitIntent(faceIntent, nowMs);
+
+    ActionMotionCommand motionCommand = ActionMotionCommand::None;
+    switch (action.motion) {
+      case MotionCommand::Center:
+        motionCommand = ActionMotionCommand::Center;
+        break;
+      case MotionCommand::IdleSway:
+        motionCommand = ActionMotionCommand::IdleSway;
+        break;
+      case MotionCommand::CuriousLeft:
+        motionCommand = ActionMotionCommand::CuriousLeft;
+        break;
+      case MotionCommand::CuriousRight:
+        motionCommand = ActionMotionCommand::CuriousRight;
+        break;
+      case MotionCommand::SoftListen:
+        motionCommand = ActionMotionCommand::SoftListen;
+        break;
+      case MotionCommand::YawLeft:
+        motionCommand = ActionMotionCommand::YawLeft;
+        break;
+      case MotionCommand::YawRight:
+        motionCommand = ActionMotionCommand::YawRight;
+        break;
+      case MotionCommand::None:
+      default:
+        if (action.enableIdleSway) {
+          motionCommand = ActionMotionCommand::IdleSway;
+        }
+        break;
+    }
+
+    bool motionAccepted = true;
+    if (motionCommand != ActionMotionCommand::None) {
+      ActionIntent motionIntent;
+      motionIntent.target = ActionTargetChannel::Motion;
+      motionIntent.priority = action.priority;
+      motionIntent.holdMs = action.faceHoldMs;
+      motionIntent.source = EventSource::BehaviorService;
+      motionIntent.reason = reason;
+      motionIntent.motion.command = motionCommand;
+      motionAccepted = actionOrchestrator_.submitIntent(motionIntent, nowMs);
+    }
+
+    return faceAccepted || motionAccepted;
+  }
+
+  faceController_.requestExpression(action.expression, action.facePriority, action.faceHoldMs);
+  applyMotion(action.motion);
+  if (action.enableIdleSway) {
+    motion_.idleSway();
+  }
   return true;
 }
 
@@ -603,21 +761,6 @@ void BehaviorService::publishActionEvent(BehaviorActionId actionId, unsigned lon
   event.timestamp = nowMs;
   eventBus_.publish(event);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

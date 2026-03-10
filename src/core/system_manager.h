@@ -48,5 +48,6 @@ private:
   unsigned long lastHeartbeatMs_ = 0;
   unsigned long lastFrameMs_ = 0;
   unsigned long lastSensorPollMs_ = 0;
+  unsigned long lastVisionPollMs_ = 0;
   unsigned long lastMotionUpdateMs_ = 0;
 };

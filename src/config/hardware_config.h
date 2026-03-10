@@ -61,12 +61,33 @@ namespace Vision {
   constexpr unsigned int DARK_LUMA_THRESHOLD = 240;
   constexpr unsigned int MOTION_SCORE_THRESHOLD = 90;
   constexpr unsigned long EVENT_COOLDOWN_MS = 300;
+
+  constexpr unsigned int REAL_FRAME_WIDTH = 160;
+  constexpr unsigned int REAL_FRAME_HEIGHT = 120;
+  constexpr unsigned int REAL_SAMPLE_STRIDE = 2;
+  constexpr unsigned int LUMA_OUTPUT_MAX = 1023;
+  constexpr unsigned int MOTION_IIR_ALPHA_PCT = 30; // 0..100
+
+  constexpr unsigned long METRICS_WINDOW_MS = 5000;
+  constexpr unsigned int MAX_CONSECUTIVE_CAPTURE_FAILS = 8;
 }
 namespace Cloud {
   constexpr unsigned long REQUEST_TIMEOUT_MS = 1600;
+  constexpr unsigned long REQUEST_TIMEOUT_VOICE_MS = 1700;
+  constexpr unsigned long REQUEST_TIMEOUT_VISION_MS = 1300;
+
   constexpr unsigned long REMOTE_LATENCY_MS = 280;
   constexpr unsigned long REQUEST_COOLDOWN_MS = 500;
+
   constexpr unsigned int MAX_RETRIES = 1;
+  constexpr unsigned long RETRY_BACKOFF_BASE_MS = 120;
+  constexpr unsigned long RETRY_BACKOFF_STEP_MS = 140;
+
+  constexpr unsigned int CIRCUIT_BREAKER_FAIL_THRESHOLD = 3;
+  constexpr unsigned long CIRCUIT_BREAKER_OPEN_MS = 4000;
+
+  constexpr bool AUTH_REQUIRED = false;
+  constexpr const char* AUTH_TOKEN = "";
 }
 namespace AudioIn {
   constexpr unsigned long SAMPLE_RATE_HZ = 16000;
@@ -445,9 +466,11 @@ namespace Ota {
   constexpr unsigned long CHECK_INTERVAL_MS = 20000;
   constexpr unsigned long STATUS_PUBLISH_INTERVAL_MS = 3000;
   constexpr unsigned long APPLY_DURATION_MS = 2500;
+  constexpr unsigned long VERIFY_DURATION_MS = 400;
 
   constexpr int MIN_BATTERY_PERCENT = 35;
   constexpr bool REQUIRE_CHARGING_TO_APPLY = false;
+  constexpr unsigned int MAX_APPLY_ATTEMPTS = 2;
 }
 namespace Recovery {
   constexpr unsigned long SELF_TEST_BOOT_SETTLE_MS = 300;
@@ -456,6 +479,8 @@ namespace Recovery {
   constexpr float SAFE_MODE_FACE_INTERVAL_SCALE = 2.2f;
   constexpr float SAFE_MODE_SENSOR_INTERVAL_SCALE = 2.0f;
   constexpr float SAFE_MODE_HEARTBEAT_INTERVAL_SCALE = 1.6f;
+
+  constexpr unsigned long BOOT_ROLLBACK_GRACE_MS = 800;
 }
 namespace Health {
   constexpr unsigned long METRIC_WINDOW_MS = 1000;
@@ -535,21 +560,29 @@ namespace System {
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 8000;
   constexpr unsigned long FACE_FRAME_INTERVAL_MS = 50; // 20 FPS (smoother under sim load)
   constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 140;
+  constexpr unsigned long VISION_POLL_INTERVAL_MS = 120;
   constexpr unsigned long MOTION_UPDATE_INTERVAL_MS = 90;
 #elif NCOS_SIM_MODE
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000;
   constexpr unsigned long FACE_FRAME_INTERVAL_MS = 50;  // 20 FPS (smoother sim pacing)
   constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 140;
+  constexpr unsigned long VISION_POLL_INTERVAL_MS = 120;
   constexpr unsigned long MOTION_UPDATE_INTERVAL_MS = 80;
 #else
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 1000;
   constexpr unsigned long FACE_FRAME_INTERVAL_MS = 33;
   constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 50;
+  constexpr unsigned long VISION_POLL_INTERVAL_MS = 66;
   constexpr unsigned long MOTION_UPDATE_INTERVAL_MS = 20;
 #endif
 }
 
+
 } // namespace HardwareConfig
+
+
+
+
 
 
 

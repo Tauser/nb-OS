@@ -110,7 +110,11 @@ void PersonaService::onEvent(const Event& event) {
 
   switch (event.type) {
     case EventType::EVT_MOOD_CHANGED:
-      mood_ = static_cast<float>(event.value) / 1000.0f;
+      if (event.hasTypedPayload(EventPayloadKind::MoodChanged)) {
+        mood_ = event.payload.moodChanged.valence;
+      } else {
+        mood_ = static_cast<float>(event.value) / 1000.0f;
+      }
       break;
 
     case EventType::EVT_ENGAGEMENT_CHANGED:
@@ -159,4 +163,5 @@ void PersonaService::publish(unsigned long nowMs) {
 
   lastPublished_ = profile_;
 }
+
 

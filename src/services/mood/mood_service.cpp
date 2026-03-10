@@ -154,8 +154,16 @@ void MoodService::publishMood(unsigned long nowMs) {
   Event event;
   event.type = EventType::EVT_MOOD_CHANGED;
   event.source = EventSource::MoodService;
-  event.value = static_cast<int>(state_.valence * 1000.0f);
   event.timestamp = nowMs;
+
+  MoodChangedPayload payload;
+  payload.valence = state_.valence;
+  payload.profile = static_cast<int>(state_.profile);
+  payload.stability = state_.stability;
+  payload.socialDrive = state_.socialDrive;
+  payload.reserve = state_.reserve;
+  event.setMoodChanged(payload);
+
   eventBus_.publish(event);
 
   lastPublished_ = state_;
@@ -203,3 +211,4 @@ MoodProfile MoodService::classifyProfile() const {
 
   return MoodProfile::Calm;
 }
+
