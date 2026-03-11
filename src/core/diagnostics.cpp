@@ -4,6 +4,10 @@
 #define NCOS_SIM_MODE 0
 #endif
 
+#ifndef NCOS_SIM_VISUAL
+#define NCOS_SIM_VISUAL 0
+#endif
+
 void Diagnostics::begin() {
   Serial.begin(115200);
 #if NCOS_SIM_MODE
@@ -17,7 +21,11 @@ void Diagnostics::printBanner() const {
   Serial.println();
   Serial.println("==================================================");
 #if NCOS_SIM_MODE
+  #if NCOS_SIM_VISUAL
+  Serial.println(" ROBOT DESKTOP - SIM VISUAL MODE (WOKWI)");
+  #else
   Serial.println(" ROBOT DESKTOP - SIM MODE (WOKWI)");
+  #endif
 #else
   Serial.println(" ROBOT DESKTOP - ETAPA 2A");
 #endif

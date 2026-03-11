@@ -5,6 +5,7 @@
 #include "../../models/attention_focus.h"
 #include "../../models/cloud_types.h"
 #include "../../models/event.h"
+#include "../../models/face_sync_cue.h"
 
 VoiceService::VoiceService(IAudioOut& audioOut,
                            IAudioIn& audioIn,
@@ -31,6 +32,7 @@ void VoiceService::init() {
       eventBus_.subscribe(EventType::BootComplete, this);
       eventBus_.subscribe(EventType::EVT_PERSONA_UPDATED, this);
       eventBus_.subscribe(EventType::EVT_PREFERENCE_UPDATED, this);
+      eventBus_.subscribe(EventType::EVT_FACE_SYNC_CUE, this);
     }
   }
 
@@ -164,6 +166,42 @@ void VoiceService::onEvent(const Event& event) {
       lastSoundMs_ = event.timestamp;
       break;
 
+    case EventType::EVT_FACE_SYNC_CUE: {
+      const FaceSyncCue cue = static_cast<FaceSyncCue>(event.value);
+      switch (cue) {
+        case FaceSyncCue::ClipWakeUp:
+          audioOut_.playTone(HardwareConfig::Dialogue::WAKE_TONE_HZ,
+                             70,
+                             HardwareConfig::AudioOut::DEFAULT_AMPLITUDE * 0.82f);
+          lastSoundMs_ = event.timestamp;
+          break;
+
+        case FaceSyncCue::ClipGoToSleep:
+          audioOut_.playTone(HardwareConfig::Dialogue::SLEEP_TONE_HZ,
+                             90,
+                             HardwareConfig::AudioOut::DEFAULT_AMPLITUDE * 0.78f);
+          lastSoundMs_ = event.timestamp;
+          break;
+
+        case FaceSyncCue::ClipHappyAck:
+          audioOut_.playTone(HardwareConfig::Dialogue::HELLO_TONE_HZ,
+                             55,
+                             HardwareConfig::AudioOut::DEFAULT_AMPLITUDE * 0.80f);
+          lastSoundMs_ = event.timestamp;
+          break;
+
+        case FaceSyncCue::ClipAttentionRecovery:
+          audioOut_.playTone(HardwareConfig::Dialogue::STATUS_TONE_HZ,
+                             58,
+                             HardwareConfig::AudioOut::DEFAULT_AMPLITUDE * 0.72f);
+          lastSoundMs_ = event.timestamp;
+          break;
+
+        default:
+          break;
+      }
+      break;
+    }
     case EventType::EVT_FALL:
       audioOut_.playTone(HardwareConfig::AudioOut::ALERT_FREQ_HZ,
                          HardwareConfig::AudioOut::ALERT_TONE_MS,
@@ -245,3 +283,6 @@ void VoiceService::resetCommandFrame() {
   levelPeak_ = 0;
   levelFrames_ = 0;
 }
+
+
+

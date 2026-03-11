@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../../models/face_shape_profile.h"
 #include "expression_types.h"
 
 struct EyeModel {
@@ -15,8 +16,9 @@ struct EyeModel {
   float stretchX = 1.0f;
   float roundness = 0.52f;
 
+  // Geometry V2. Legacy path remains available through roundness/tilt/lids.
+  bool useShapeV2 = false;
+  ResolvedEyeShape shape{};
+
   ExpressionType expression = ExpressionType::Neutral;
 };
-
-
-

@@ -48,6 +48,7 @@ enum class EventType {
   EVT_MOTION_POSE_APPLIED,
   EVT_EMOTION_CHANGED,
   EVT_BEHAVIOR_ACTION,
+  EVT_FACE_SYNC_CUE,
   EVT_COMPANION_STATE_CHANGED
 };
 
@@ -85,6 +86,7 @@ enum class EventSource {
   OTAService,
   CompanionStateService
 };
+
 
 
 

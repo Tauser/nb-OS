@@ -1,4 +1,5 @@
 #include "face_service.h"
+#include "face_geometry.h"
 
 #include "../../config/hardware_config.h"
 #include "../../utils/math_utils.h"
@@ -38,36 +39,23 @@ const char* expressionName(ExpressionType e) {
 }
 #endif
 bool parseTunerPresetName(const char* presetName, FacePresetId* outId) {
-  if (presetName == nullptr || outId == nullptr) {
-    return false;
-  }
-
-  if (strcmp(presetName, "neutral") == 0) { *outId = FacePresetId::Neutral; return true; }
-  if (strcmp(presetName, "curious") == 0) { *outId = FacePresetId::Curious; return true; }
-  if (strcmp(presetName, "sleepy") == 0) { *outId = FacePresetId::Sleepy; return true; }
-  if (strcmp(presetName, "happy_soft") == 0 || strcmp(presetName, "happy") == 0) { *outId = FacePresetId::HappySoft; return true; }
-  if (strcmp(presetName, "focused") == 0) { *outId = FacePresetId::Focused; return true; }
-  if (strcmp(presetName, "shy") == 0) { *outId = FacePresetId::Shy; return true; }
-  if (strcmp(presetName, "surprised") == 0) { *outId = FacePresetId::Surprised; return true; }
-  if (strcmp(presetName, "low_energy") == 0 || strcmp(presetName, "alert") == 0) { *outId = FacePresetId::LowEnergy; return true; }
-  if (strcmp(presetName, "listening") == 0) { *outId = FacePresetId::Listening; return true; }
-  if (strcmp(presetName, "thinking") == 0) { *outId = FacePresetId::Thinking; return true; }
-  return false;
+  return parseFacePresetId(presetName, outId);
 }
 
 const char* tunerPresetName(FacePresetId id) {
-  switch (id) {
-    case FacePresetId::Neutral: return "neutral";
-    case FacePresetId::Curious: return "curious";
-    case FacePresetId::Sleepy: return "sleepy";
-    case FacePresetId::HappySoft: return "happy_soft";
-    case FacePresetId::Focused: return "focused";
-    case FacePresetId::Shy: return "shy";
-    case FacePresetId::Surprised: return "surprised";
-    case FacePresetId::LowEnergy: return "low_energy";
-    case FacePresetId::Listening: return "listening";
-    case FacePresetId::Thinking: return "thinking";
-    default: return "neutral";
+  return facePresetName(id);
+}
+
+const char* gazeModeName(FaceGazeMode mode) {
+  switch (mode) {
+    case FaceGazeMode::Hold: return "hold";
+    case FaceGazeMode::Saccade: return "saccade";
+    case FaceGazeMode::MicroSaccade: return "micro";
+    case FaceGazeMode::Scan: return "scan";
+    case FaceGazeMode::Recover: return "recover";
+    case FaceGazeMode::None:
+    default:
+      return "none";
   }
 }
 }
@@ -102,8 +90,33 @@ void FaceService::init() {
   blendToPresetId_ = activePresetId_;
   tunerPresetId_ = activePresetId_;
   tunerPreset_ = getExpressionPreset(tunerPresetId_);
+#if NCOS_SIM_MODE
+  const char* presetValidationReason = nullptr;
+  if (!validateFacePresetLibrary(&presetValidationReason)) {
+    Serial.print("[WARN] [FACE_PRESET] validation_failed=");
+    Serial.println(presetValidationReason == nullptr ? "unknown" : presetValidationReason);
+  } else {
+    Serial.println("[INFO] [FACE_PRESET] library_frozen=on");
+  }
+#endif
 
   const unsigned long now = millis();
+
+  gazeController_.init(now);
+  gazeController_.setContext(currentExpression_, emo.attention, emo.curiosity, true);
+  clipPlayer_.init(now);
+  clipPlayer_.play(FaceClipKind::WakeUp, now, true);
+  clipPlayer_.update(now);
+
+
+  FaceCompositorPolicy composePolicy;
+  composePolicy.baseMinHoldMs = HardwareConfig::FaceComposition::BASE_MIN_HOLD_MS;
+  composePolicy.transitionCooldownMs = HardwareConfig::FaceComposition::TRANSITION_COOLDOWN_MS;
+  composePolicy.clipCooldownMs = HardwareConfig::FaceComposition::CLIP_COOLDOWN_MS;
+  composePolicy.transientCooldownMs = HardwareConfig::FaceComposition::TRANSIENT_COOLDOWN_MS;
+  composePolicy.transientMinDurationMs = HardwareConfig::FaceComposition::TRANSIENT_MIN_DURATION_MS;
+  compositor_.setPolicy(composePolicy);
+  compositor_.init(now);
 
   scheduleNextBlink(now);
   lastIdleMotionMs_ = now;
@@ -116,14 +129,40 @@ void FaceService::init() {
   idleLastUpdateMs_ = now;
   nextIdleMicroAnimAtMs_ = now + static_cast<unsigned long>(random(2200, 5200));
 
+  clipPlayer_.update(now);
   FaceLayerState layer = buildBaseExpressionLayer(now, emo);
   applyMoodModulationLayer(layer, emo);
   applyAttentionModulationLayer(layer, emo);
   applyNeckCoherenceLayer(layer, emo);
+
+  const FaceLayerState baseLayer = layer;
+  FaceLayerState layerBefore = layer;
+
+  applyGazeControllerLayer(layer, now, emo);
+  const FaceLayerDelta gazeDelta = captureDelta(layerBefore, layer);
+
+  layerBefore = layer;
   applyIdleModulationLayer(layer, now, emo);
+  const FaceLayerDelta idleDelta = captureDelta(layerBefore, layer);
+
+  layerBefore = layer;
   applyTransientReactionLayer(layer, now, emo);
+  const FaceLayerDelta transientDelta = captureDelta(layerBefore, layer);
+
+  layerBefore = layer;
+  applyClipLayer(layer);
+  const FaceLayerDelta clipDelta = captureDelta(layerBefore, layer);
+
+  layerBefore = layer;
   applyBlinkLayer(layer, now, emo);
-  commitLayerState(layer);
+  const FaceLayerDelta blinkDelta = captureDelta(layerBefore, layer);
+
+  syncRenderState(now, emo, layer);
+  renderState_ = compositor_.resolve(renderState_, now);
+
+  const FaceLayerState resolvedLayer =
+      resolveLayerWithCompositor(baseLayer, gazeDelta, idleDelta, transientDelta, clipDelta, blinkDelta);
+  commitLayerState(resolvedLayer);
 
   smoothEyes(now);
   renderer_.render(leftEye_, rightEye_);
@@ -169,6 +208,22 @@ void FaceService::requestExpression(ExpressionType expression, EyeAnimPriority p
 }
 
 
+void FaceService::requestGazeTarget(const FaceGazeTarget& target) {
+  gazeController_.setTarget(target, millis());
+}
+
+void FaceService::clearGazeTarget() {
+  gazeController_.clearTarget(millis());
+}
+
+bool FaceService::requestClip(FaceClipKind kind, bool allowPreempt) {
+  return clipPlayer_.play(kind, millis(), allowPreempt);
+}
+
+bool FaceService::cancelClip() {
+  return clipPlayer_.cancel(millis());
+}
+
 bool FaceService::tunerSetEnabled(bool enabled) {
   tunerEnabled_ = enabled;
   if (tunerEnabled_) {
@@ -198,16 +253,18 @@ bool FaceService::tunerSetParam(const char* key, float value) {
     return false;
   }
 
+  const PresetTuningGuardrails& limits = tunerPreset_.tuning;
+
   if (strcmp(key, "width") == 0) {
-    tunerPreset_.widthScale = MathUtils::clamp(value, 0.72f, 1.65f);
+    tunerPreset_.widthScale = MathUtils::clamp(value, limits.widthMin, limits.widthMax);
     return true;
   }
   if (strcmp(key, "height") == 0) {
-    tunerPreset_.heightScale = MathUtils::clamp(value, 0.48f, 1.45f);
+    tunerPreset_.heightScale = MathUtils::clamp(value, limits.heightMin, limits.heightMax);
     return true;
   }
   if (strcmp(key, "round") == 0 || strcmp(key, "roundness") == 0) {
-    tunerPreset_.roundness = MathUtils::clamp(value, 0.18f, 0.92f);
+    tunerPreset_.roundness = MathUtils::clamp(value, limits.roundnessMin, limits.roundnessMax);
     return true;
   }
   if (strcmp(key, "tilt") == 0) {
@@ -219,15 +276,15 @@ bool FaceService::tunerSetParam(const char* key, float value) {
     return true;
   }
   if (strcmp(key, "upper") == 0) {
-    tunerPreset_.upperLid = MathUtils::clamp(value, 0.0f, 0.95f);
+    tunerPreset_.upperLid = MathUtils::clamp(value, limits.upperLidMin, limits.upperLidMax);
     return true;
   }
   if (strcmp(key, "lower") == 0) {
-    tunerPreset_.lowerLid = MathUtils::clamp(value, 0.0f, 0.90f);
+    tunerPreset_.lowerLid = MathUtils::clamp(value, limits.lowerLidMin, limits.lowerLidMax);
     return true;
   }
   if (strcmp(key, "open") == 0 || strcmp(key, "openness") == 0) {
-    tunerPreset_.baseOpenness = MathUtils::clamp(value, 0.32f, 1.20f);
+    tunerPreset_.baseOpenness = MathUtils::clamp(value, limits.opennessMin, limits.opennessMax);
     return true;
   }
 
@@ -276,9 +333,13 @@ bool FaceService::tunerGetStatus(char* out, size_t outSize) const {
 
   const int written = snprintf(out,
                                outSize,
-                               "enabled=%s preset=%s width=%.3f height=%.3f round=%.3f tilt=%.2f space=%.3f upper=%.3f lower=%.3f open=%.3f",
+                               "enabled=%s preset=%s tier=%s frozen=%s gaze=%s clip=%s width=%.3f height=%.3f round=%.3f tilt=%.2f space=%.3f upper=%.3f lower=%.3f open=%.3f",
                                tunerEnabled_ ? "on" : "off",
                                tunerPresetName(tunerPresetId_),
+                               facePresetTierName(getExpressionPreset(tunerPresetId_).readabilityTier),
+                               facePresetLibraryFrozen() ? "yes" : "no",
+                               gazeModeName(renderState_.gaze.mode),
+                               faceClipName(renderState_.clip.kind),
                                tunerPreset_.widthScale,
                                tunerPreset_.heightScale,
                                tunerPreset_.roundness,
@@ -289,11 +350,119 @@ bool FaceService::tunerGetStatus(char* out, size_t outSize) const {
                                tunerPreset_.baseOpenness);
   return written > 0;
 }
+const FaceRenderState& FaceService::getFaceRenderState() const {
+  return renderState_;
+}
+
+FaceMoodEnvelope FaceService::chooseMoodEnvelope(const EmotionState& emo) const {
+  if (emo.energy < 0.25f) {
+    return FaceMoodEnvelope::LowEnergy;
+  }
+  if (emo.energy < 0.38f) {
+    return FaceMoodEnvelope::Sleepy;
+  }
+  if (emo.attention > 0.72f || emo.arousal > 0.72f) {
+    return FaceMoodEnvelope::Alert;
+  }
+  if (emo.valence > 0.25f) {
+    return FaceMoodEnvelope::Warm;
+  }
+  if (emo.arousal < 0.35f) {
+    return FaceMoodEnvelope::Calm;
+  }
+  return FaceMoodEnvelope::Neutral;
+}
+
+FaceTransientReactionKind FaceService::chooseTransientKind() const {
+  switch (idleMicroAnim_) {
+    case IdleMicroAnim::CuriosityPulse:
+      return FaceTransientReactionKind::Notice;
+    case IdleMicroAnim::TinySquish:
+    case IdleMicroAnim::SlightRelax:
+      return FaceTransientReactionKind::Acknowledge;
+    case IdleMicroAnim::SleepySettling:
+      return FaceTransientReactionKind::Recovery;
+    case IdleMicroAnim::WakeCorrection:
+      return FaceTransientReactionKind::Recovery;
+    case IdleMicroAnim::None:
+    default:
+      return FaceTransientReactionKind::None;
+  }
+}
+
+FaceIdleMode FaceService::chooseIdleMode() const {
+  switch (idleMicroAnim_) {
+    case IdleMicroAnim::SleepySettling:
+      return FaceIdleMode::SleepySettle;
+    case IdleMicroAnim::CuriosityPulse:
+      return FaceIdleMode::AttentionPulse;
+    case IdleMicroAnim::TinySquish:
+    case IdleMicroAnim::SlightRelax:
+    case IdleMicroAnim::WakeCorrection:
+      return FaceIdleMode::Drift;
+    case IdleMicroAnim::None:
+    default:
+      return FaceIdleMode::Breath;
+  }
+}
+
+void FaceService::syncRenderState(unsigned long nowMs, const EmotionState& emo, const FaceLayerState& layer) {
+  renderState_.timestampMs = nowMs;
+
+  renderState_.base.expression = currentExpression_;
+  renderState_.base.priority = currentPriority_;
+  renderState_.base.holdUntilMs = (expressionHoldUntilMs_ > autoHoldUntilMs_) ? expressionHoldUntilMs_ : autoHoldUntilMs_;
+  renderState_.base.locked = renderState_.base.holdUntilMs > nowMs;
+  renderState_.base.owner = FaceLayerOwner::BaseExpressionController;
+
+  const FaceGazeController::Output& gazeOut = gazeController_.output();
+  renderState_.gaze.enabled = gazeOut.enabled;
+  renderState_.gaze.mode = gazeOut.mode;
+  renderState_.gaze.targetXNorm = gazeOut.targetXNorm;
+  renderState_.gaze.targetYNorm = gazeOut.targetYNorm;
+  renderState_.gaze.amplitude = gazeOut.amplitude;
+  renderState_.gaze.holdUntilMs = gazeOut.fixationUntilMs;
+  renderState_.gaze.owner = FaceLayerOwner::GazeController;
+
+  renderState_.blink.active = blinking_;
+  renderState_.blink.startedAtMs = blinkStartMs_;
+  renderState_.blink.durationMs = blinkDurationMs_;
+  renderState_.blink.allowDuringClip = true;
+  renderState_.blink.mode = FaceBlinkMode::Auto;
+  renderState_.blink.owner = FaceLayerOwner::BlinkController;
+
+  renderState_.idle.enabled = true;
+  renderState_.idle.mode = chooseIdleMode();
+  renderState_.idle.intensity = MathUtils::clamp(fabsf(idleAttentionBias_) * 0.08f + fabsf(layer.stretchX - 1.0f) + fabsf(layer.squashY - 1.0f), 0.0f, 1.0f);
+  renderState_.idle.owner = FaceLayerOwner::IdleController;
+
+  renderState_.mood.envelope = chooseMoodEnvelope(emo);
+  renderState_.mood.energy = emo.energy;
+  renderState_.mood.valence = emo.valence;
+  renderState_.mood.attention = emo.attention;
+  renderState_.mood.curiosity = emo.curiosity;
+  renderState_.mood.owner = FaceLayerOwner::MoodController;
+
+  const FaceTransientReactionKind transientKind = chooseTransientKind();
+  renderState_.transient.kind = transientKind;
+  renderState_.transient.active = (transientKind != FaceTransientReactionKind::None);
+  renderState_.transient.startedAtMs = idleMicroStartMs_;
+  renderState_.transient.durationMs = idleMicroDurationMs_;
+  renderState_.transient.owner = FaceLayerOwner::TransientReactionController;
+
+  renderState_.clip = clipPlayer_.state();
+  if (renderState_.clip.owner == FaceLayerOwner::None) {
+    renderState_.clip.owner = FaceLayerOwner::ClipPlayer;
+  }
+}
 void FaceService::update(unsigned long nowMs) {
   const EmotionState& emo = emotionProvider_.getEmotionState();
+  clipPlayer_.update(nowMs);
 
   if (tunerEnabled_) {
     FaceLayerState layer = buildBaseExpressionLayer(nowMs, emo);
+    syncRenderState(nowMs, emo, layer);
+    renderState_ = compositor_.resolve(renderState_, nowMs);
     commitLayerState(layer);
 
     smoothEyes(nowMs);
@@ -312,10 +481,35 @@ void FaceService::update(unsigned long nowMs) {
   applyMoodModulationLayer(layer, emo);
   applyAttentionModulationLayer(layer, emo);
   applyNeckCoherenceLayer(layer, emo);
+
+  const FaceLayerState baseLayer = layer;
+  FaceLayerState layerBefore = layer;
+
+  applyGazeControllerLayer(layer, nowMs, emo);
+  const FaceLayerDelta gazeDelta = captureDelta(layerBefore, layer);
+
+  layerBefore = layer;
   applyIdleModulationLayer(layer, nowMs, emo);
+  const FaceLayerDelta idleDelta = captureDelta(layerBefore, layer);
+
+  layerBefore = layer;
   applyTransientReactionLayer(layer, nowMs, emo);
+  const FaceLayerDelta transientDelta = captureDelta(layerBefore, layer);
+
+  layerBefore = layer;
+  applyClipLayer(layer);
+  const FaceLayerDelta clipDelta = captureDelta(layerBefore, layer);
+
+  layerBefore = layer;
   applyBlinkLayer(layer, nowMs, emo);
-  commitLayerState(layer);
+  const FaceLayerDelta blinkDelta = captureDelta(layerBefore, layer);
+
+  syncRenderState(nowMs, emo, layer);
+  renderState_ = compositor_.resolve(renderState_, nowMs);
+
+  const FaceLayerState resolvedLayer =
+      resolveLayerWithCompositor(baseLayer, gazeDelta, idleDelta, transientDelta, clipDelta, blinkDelta);
+  commitLayerState(resolvedLayer);
 
   smoothEyes(nowMs);
 
@@ -400,6 +594,7 @@ void FaceService::stepStateMachine(unsigned long nowMs) {
       const ExpressionPreset& nextPresetData = getExpressionPreset(nextPreset);
       autoHoldUntilMs_ = nowMs + nextPresetData.transition.holdMs;
     }
+      queueClipForExpressionTransition(prevExpression, currentExpression_, nowMs);
 
 #if NCOS_SIM_MODE
     if (currentExpression_ != prevExpression) {
@@ -407,6 +602,47 @@ void FaceService::stepStateMachine(unsigned long nowMs) {
       Serial.println(expressionName(currentExpression_));
     }
 #endif
+  }
+}
+
+void FaceService::queueClipForExpressionTransition(ExpressionType previous, ExpressionType current, unsigned long nowMs) {
+  if (current == previous) {
+    return;
+  }
+
+  FaceClipKind clipKind = FaceClipKind::None;
+  bool allowPreempt = true;
+
+  switch (current) {
+    case ExpressionType::Surprised:
+      clipKind = FaceClipKind::AttentionRecovery;
+      break;
+    case ExpressionType::Thinking:
+      clipKind = FaceClipKind::ThinkingLoop;
+      allowPreempt = false;
+      break;
+    case ExpressionType::Listening:
+      clipKind = FaceClipKind::SoftListen;
+      allowPreempt = false;
+      break;
+    case ExpressionType::Shy:
+      clipKind = FaceClipKind::ShyRetract;
+      break;
+    case ExpressionType::FaceRecognized:
+      clipKind = FaceClipKind::HappyAck;
+      break;
+    case ExpressionType::BatteryAlert:
+      clipKind = FaceClipKind::GoToSleep;
+      break;
+    case ExpressionType::Curiosity:
+      clipKind = (previous == ExpressionType::BatteryAlert) ? FaceClipKind::WakeUp : FaceClipKind::AttentionRecovery;
+      break;
+    default:
+      break;
+  }
+
+  if (clipKind != FaceClipKind::None) {
+    clipPlayer_.play(clipKind, nowMs, allowPreempt);
   }
 }
 
@@ -438,6 +674,7 @@ void FaceService::beginPresetBlend(FacePresetId from, FacePresetId to, unsigned 
   presetBlendDurationMs_ = duration;
 }
 
+
 float FaceService::computePresetBlend(unsigned long nowMs) const {
   if (!presetBlendActive_ || presetBlendDurationMs_ == 0) {
     return 1.0f;
@@ -465,25 +702,13 @@ float FaceService::easedBlend(float t, const TransitionProfile& transition) cons
 
 FaceService::FaceLayerState FaceService::buildBaseExpressionLayer(unsigned long nowMs, const EmotionState& emo) {
   FacePresetId desiredPresetId = tunerEnabled_ ? tunerPresetId_ : choosePreset(currentExpression_, emo);
-  if (!tunerEnabled_) {
-    switch (currentExpression_) {
-      case ExpressionType::Surprised: desiredPresetId = FacePresetId::Surprised; break;
-      case ExpressionType::Shy: desiredPresetId = FacePresetId::Shy; break;
-      case ExpressionType::Listening: desiredPresetId = FacePresetId::Listening; break;
-      case ExpressionType::Thinking: desiredPresetId = FacePresetId::Thinking; break;
-      default: break;
-    }
-  }
 
   if (desiredPresetId != blendToPresetId_) {
-    const bool forcedPreset = !tunerEnabled_ && ((currentExpression_ == ExpressionType::Surprised) ||
-                              (currentExpression_ == ExpressionType::Shy) ||
-                              (currentExpression_ == ExpressionType::Listening) ||
-                              (currentExpression_ == ExpressionType::Thinking) ||
-                              (currentExpression_ == ExpressionType::BatteryAlert));
+    const PresetUsageProfile& desiredUsage = facePresetUsageProfile(desiredPresetId);
+    const unsigned long dwellMs =
+        desiredUsage.role == FacePresetUsageRole::Situational ? 180UL : 520UL;
 
-    const unsigned long dwellMs = forcedPreset ? 120UL : 520UL;
-    if (forcedPreset || (nowMs - lastPresetSwitchMs_ >= dwellMs)) {
+    if (nowMs - lastPresetSwitchMs_ >= dwellMs) {
       beginPresetBlend(blendToPresetId_, desiredPresetId, nowMs);
       lastPresetSwitchMs_ = nowMs;
     }
@@ -514,36 +739,6 @@ FaceService::FaceLayerState FaceService::buildBaseExpressionLayer(unsigned long 
   layer.upperLid = lerpF(fromPreset.upperLid, toPreset.upperLid, blend);
   layer.lowerLid = lerpF(fromPreset.lowerLid, toPreset.lowerLid, blend);
   layer.openness = lerpF(fromPreset.baseOpenness, toPreset.baseOpenness, blend);
-  // Signature adjustments for stronger preset readability at product level.
-  if (!tunerEnabled_) {
-    switch (currentExpression_) {
-      case ExpressionType::Surprised:
-        layer.openness += 0.06f;
-        layer.upperLid = MathUtils::clamp(layer.upperLid - 0.04f, 0.0f, 0.95f);
-        layer.stretchX += 0.03f;
-        break;
-      case ExpressionType::Shy:
-        layer.upperLid += 0.05f;
-        layer.lowerLid += 0.02f;
-        layer.squashY -= 0.03f;
-        break;
-      case ExpressionType::Listening:
-        layer.spacingScale += 0.01f;
-        layer.tiltDeg += 1.2f;
-        break;
-      case ExpressionType::Thinking:
-        layer.upperLid += 0.03f;
-        layer.roundness -= 0.02f;
-        break;
-      case ExpressionType::BatteryAlert:
-        layer.upperLid += 0.04f;
-        layer.lowerLid += 0.03f;
-        layer.openness -= 0.04f;
-        break;
-      default:
-        break;
-    }
-  }
   const int centerX = (HardwareConfig::Face::LEFT_EYE_X + HardwareConfig::Face::RIGHT_EYE_X) / 2;
   const int halfSpacing = static_cast<int>((HardwareConfig::Face::RIGHT_EYE_X - HardwareConfig::Face::LEFT_EYE_X) * 0.5f * layer.spacingScale);
   layer.leftX = centerX - halfSpacing;
@@ -555,28 +750,31 @@ FaceService::FaceLayerState FaceService::buildBaseExpressionLayer(unsigned long 
 
 void FaceService::applyMoodModulationLayer(FaceLayerState& layer, const EmotionState& emo) {
   const float moodPos = MathUtils::clamp((emo.valence + 1.0f) * 0.5f, 0.0f, 1.0f);
+  const float gain = facePresetLayerBlend(blendToPresetId_).moodGain;
 
-  layer.openness += (emo.curiosity - 0.5f) * 0.10f;
-  layer.openness -= (1.0f - emo.energy) * 0.22f;
-  layer.openness += (moodPos - 0.5f) * 0.06f;
+  layer.openness += ((emo.curiosity - 0.5f) * 0.10f) * gain;
+  layer.openness -= ((1.0f - emo.energy) * 0.22f) * gain;
+  layer.openness += ((moodPos - 0.5f) * 0.06f) * gain;
 
-  layer.stretchX += (emo.curiosity - 0.5f) * 0.15f;
-  layer.stretchX += (moodPos - 0.5f) * 0.10f;
+  layer.stretchX += ((emo.curiosity - 0.5f) * 0.15f) * gain;
+  layer.stretchX += ((moodPos - 0.5f) * 0.10f) * gain;
 
-  layer.squashY += (emo.attention - 0.5f) * 0.08f;
-  layer.squashY -= (1.0f - emo.energy) * 0.10f;
+  layer.squashY += ((emo.attention - 0.5f) * 0.08f) * gain;
+  layer.squashY -= ((1.0f - emo.energy) * 0.10f) * gain;
 
-  layer.tiltDeg += ((emo.arousal - 0.5f) * 4.2f) + (emo.valence * 1.8f);
-  layer.roundness += (moodPos - 0.5f) * 0.06f;
+  layer.tiltDeg += (((emo.arousal - 0.5f) * 4.2f) + (emo.valence * 1.8f)) * gain;
+  layer.roundness += ((moodPos - 0.5f) * 0.06f) * gain;
 }
 
 void FaceService::applyAttentionModulationLayer(FaceLayerState& layer, const EmotionState& emo) {
-  layer.upperLid += (1.0f - emo.energy) * 0.08f;
-  layer.lowerLid += (1.0f - emo.energy) * 0.03f;
-  layer.upperLid -= emo.attention * 0.05f;
+  const float gain = facePresetLayerBlend(blendToPresetId_).attentionGain;
 
-  layer.spacingScale += (emo.attention - 0.5f) * 0.04f;
-  layer.stretchX -= (emo.attention - 0.5f) * 0.03f;
+  layer.upperLid += ((1.0f - emo.energy) * 0.08f) * gain;
+  layer.lowerLid += ((1.0f - emo.energy) * 0.03f) * gain;
+  layer.upperLid -= (emo.attention * 0.05f) * gain;
+
+  layer.spacingScale += ((emo.attention - 0.5f) * 0.04f) * gain;
+  layer.stretchX -= ((emo.attention - 0.5f) * 0.03f) * gain;
 }
 
 void FaceService::applyNeckCoherenceLayer(FaceLayerState& layer, const EmotionState& emo) {
@@ -651,6 +849,35 @@ void FaceService::applyNeckCoherenceLayer(FaceLayerState& layer, const EmotionSt
   layer.y = HardwareConfig::Face::EYE_Y + gazeOffsetY;
 }
 
+void FaceService::applyGazeControllerLayer(FaceLayerState& layer, unsigned long nowMs, const EmotionState& emo) {
+  const bool idleLike = (currentExpression_ == ExpressionType::Neutral) ||
+                        (currentExpression_ == ExpressionType::Curiosity) ||
+                        (currentExpression_ == ExpressionType::BatteryAlert) ||
+                        (currentExpression_ == ExpressionType::Sad);
+
+  gazeController_.setContext(currentExpression_, emo.attention, emo.curiosity, idleLike);
+  gazeController_.update(nowMs);
+
+  const FaceGazeController::Output& gazeOut = gazeController_.output();
+  if (!gazeOut.enabled) {
+    return;
+  }
+
+  const float gain = facePresetLayerBlend(blendToPresetId_).gazeGain;
+
+  const int offsetX = static_cast<int>(gazeOut.currentXNorm * (5.0f + (emo.attention * 2.0f)) * gain);
+  const int offsetY = static_cast<int>(gazeOut.currentYNorm * (3.0f + (emo.attention * 1.2f)) * gain);
+
+  layer.leftX += offsetX;
+  layer.rightX += offsetX;
+  layer.y += offsetY;
+
+  layer.yawNorm = MathUtils::clamp(layer.yawNorm + ((gazeOut.currentXNorm * 0.65f) * gain), -1.0f, 1.0f);
+  layer.tiltNorm = MathUtils::clamp(layer.tiltNorm + ((gazeOut.currentYNorm * 0.60f) * gain), -1.0f, 1.0f);
+
+  layer.tiltDeg += (gazeOut.currentXNorm * 1.6f) * gain;
+  layer.spacingScale += (fabsf(gazeOut.currentXNorm) * 0.015f) * gain;
+}
 void FaceService::applyIdleModulationLayer(FaceLayerState& layer, unsigned long nowMs, const EmotionState& emo) {
   const unsigned long dtMs = (idleLastUpdateMs_ == 0) ? 0 : (nowMs - idleLastUpdateMs_);
   idleLastUpdateMs_ = nowMs;
@@ -665,6 +892,7 @@ void FaceService::applyIdleModulationLayer(FaceLayerState& layer, unsigned long 
   const float energy = MathUtils::clamp(emo.energy, 0.0f, 1.0f);
   const float arousal = MathUtils::clamp(emo.arousal, 0.0f, 1.0f);
   const float attention = MathUtils::clamp(emo.attention, 0.0f, 1.0f);
+  const float gain = facePresetLayerBlend(blendToPresetId_).idleGain;
 
   idleBreathPhase_ += dt * (0.85f + (0.55f * energy));
   idleDriftPhase_ += dt * (0.42f + (0.30f * emo.curiosity));
@@ -679,19 +907,19 @@ void FaceService::applyIdleModulationLayer(FaceLayerState& layer, unsigned long 
                                           0.0f,
                                           1.0f);
 
-  layer.openness += (activity - 0.5f) * HardwareConfig::EmotionOutput::FACE_ACTIVITY_GAIN;
-  layer.openness -= (1.0f - energy) * HardwareConfig::EmotionOutput::FACE_LOW_ENERGY_GAIN;
-  layer.openness += breath * (0.008f + ((1.0f - energy) * 0.010f));
+  layer.openness += ((activity - 0.5f) * HardwareConfig::EmotionOutput::FACE_ACTIVITY_GAIN) * gain;
+  layer.openness -= ((1.0f - energy) * HardwareConfig::EmotionOutput::FACE_LOW_ENERGY_GAIN) * gain;
+  layer.openness += (breath * (0.008f + ((1.0f - energy) * 0.010f))) * gain;
 
-  const float breathHeight = breath * (0.008f + ((1.0f - energy) * 0.010f));
-  const float driftWidth = drift * (0.010f + (attention * 0.004f));
-  const float tiltDrift = drift * (0.55f + (emo.curiosity * 0.35f));
+  const float breathHeight = (breath * (0.008f + ((1.0f - energy) * 0.010f))) * gain;
+  const float driftWidth = (drift * (0.010f + (attention * 0.004f))) * gain;
+  const float tiltDrift = (drift * (0.55f + (emo.curiosity * 0.35f))) * gain;
 
   layer.squashY += breathHeight;
   layer.stretchX += driftWidth;
   layer.tiltDeg += tiltDrift;
 
-  idleAttentionBias_ = lerpF(idleAttentionBias_, attentionPulse * 0.6f, 0.18f);
+  idleAttentionBias_ = lerpF(idleAttentionBias_, (attentionPulse * 0.6f) * gain, 0.18f);
   layer.leftX += static_cast<int>(idleAttentionBias_);
   layer.rightX += static_cast<int>(idleAttentionBias_);
 }
@@ -742,7 +970,8 @@ void FaceService::applyTransientReactionLayer(FaceLayerState& layer, unsigned lo
     startIdleMicroAnim(nowMs, emo);
   }
 
-  const float microEnv = idleMicroEnvelope(nowMs);
+  const float transientGain = facePresetLayerBlend(blendToPresetId_).transientGain;
+  const float microEnv = idleMicroEnvelope(nowMs) * transientGain;
   if (microEnv <= 0.0001f) {
     idleMicroAnim_ = IdleMicroAnim::None;
     return;
@@ -778,6 +1007,26 @@ void FaceService::applyTransientReactionLayer(FaceLayerState& layer, unsigned lo
     default:
       break;
   }
+}
+
+void FaceService::applyClipLayer(FaceLayerState& layer) {
+  if (!clipPlayer_.isActive()) {
+    return;
+  }
+
+  const float gain = facePresetLayerBlend(blendToPresetId_).clipGain;
+  const FaceClipSample& clip = clipPlayer_.sample();
+  layer.leftX += static_cast<int>(clip.offsetX * gain);
+  layer.rightX += static_cast<int>(clip.offsetX * gain);
+  layer.y += static_cast<int>(clip.offsetY * gain);
+  layer.openness += clip.opennessDelta * gain;
+  layer.upperLid += clip.upperLidDelta * gain;
+  layer.lowerLid += clip.lowerLidDelta * gain;
+  layer.tiltDeg += clip.tiltDegDelta * gain;
+  layer.squashY += clip.squashYDelta * gain;
+  layer.stretchX += clip.stretchXDelta * gain;
+  layer.roundness += clip.roundnessDelta * gain;
+  layer.spacingScale += clip.spacingScaleDelta * gain;
 }
 
 FaceService::BlinkType FaceService::chooseBlinkType(const EmotionState& emo) const {
@@ -955,8 +1204,76 @@ void FaceService::applyBlinkLayer(FaceLayerState& layer, unsigned long nowMs, co
   }
 
   const float pulse = computeBlinkPulse(elapsed);
-  layer.upperLid = lerpF(blinkBaseUpperLid_, blinkUpperPeak_, pulse);
-  layer.lowerLid = lerpF(blinkBaseLowerLid_, blinkLowerPeak_, pulse);
+  const float blinkGain = MathUtils::clamp(facePresetLayerBlend(blendToPresetId_).blinkGain, 0.60f, 1.20f);
+  const float adjustedUpperPeak = lerpF(blinkBaseUpperLid_, blinkUpperPeak_, blinkGain);
+  const float adjustedLowerPeak = lerpF(blinkBaseLowerLid_, blinkLowerPeak_, blinkGain);
+  layer.upperLid = lerpF(blinkBaseUpperLid_, adjustedUpperPeak, pulse);
+  layer.lowerLid = lerpF(blinkBaseLowerLid_, adjustedLowerPeak, pulse);
+}
+
+FaceService::FaceLayerDelta FaceService::captureDelta(const FaceLayerState& before,
+                                                      const FaceLayerState& after) const {
+  FaceLayerDelta delta;
+  delta.leftX = after.leftX - before.leftX;
+  delta.rightX = after.rightX - before.rightX;
+  delta.y = after.y - before.y;
+  delta.openness = after.openness - before.openness;
+  delta.upperLid = after.upperLid - before.upperLid;
+  delta.lowerLid = after.lowerLid - before.lowerLid;
+  delta.tiltDeg = after.tiltDeg - before.tiltDeg;
+  delta.squashY = after.squashY - before.squashY;
+  delta.stretchX = after.stretchX - before.stretchX;
+  delta.roundness = after.roundness - before.roundness;
+  delta.spacingScale = after.spacingScale - before.spacingScale;
+  delta.yawNorm = after.yawNorm - before.yawNorm;
+  delta.tiltNorm = after.tiltNorm - before.tiltNorm;
+  return delta;
+}
+
+void FaceService::applyDelta(FaceLayerState& layer, const FaceLayerDelta& delta) const {
+  layer.leftX += delta.leftX;
+  layer.rightX += delta.rightX;
+  layer.y += delta.y;
+  layer.openness += delta.openness;
+  layer.upperLid += delta.upperLid;
+  layer.lowerLid += delta.lowerLid;
+  layer.tiltDeg += delta.tiltDeg;
+  layer.squashY += delta.squashY;
+  layer.stretchX += delta.stretchX;
+  layer.roundness += delta.roundness;
+  layer.spacingScale += delta.spacingScale;
+  layer.yawNorm += delta.yawNorm;
+  layer.tiltNorm += delta.tiltNorm;
+}
+
+FaceService::FaceLayerState FaceService::resolveLayerWithCompositor(const FaceLayerState& baseLayer,
+                                                                    const FaceLayerDelta& gazeDelta,
+                                                                    const FaceLayerDelta& idleDelta,
+                                                                    const FaceLayerDelta& transientDelta,
+                                                                    const FaceLayerDelta& clipDelta,
+                                                                    const FaceLayerDelta& blinkDelta) const {
+  FaceLayerState resolved = baseLayer;
+  if (renderState_.gaze.enabled) {
+    applyDelta(resolved, gazeDelta);
+  }
+
+  if (renderState_.idle.enabled) {
+    applyDelta(resolved, idleDelta);
+  }
+
+  if (renderState_.transient.active) {
+    applyDelta(resolved, transientDelta);
+  }
+
+  if (renderState_.clip.active) {
+    applyDelta(resolved, clipDelta);
+  }
+
+  if (renderState_.blink.active) {
+    applyDelta(resolved, blinkDelta);
+  }
+
+  return resolved;
 }
 
 void FaceService::commitLayerState(const FaceLayerState& layerIn) {
@@ -996,11 +1313,20 @@ void FaceService::commitLayerState(const FaceLayerState& layerIn) {
   targetLeftEye_.roundness = layer.roundness;
   targetRightEye_.roundness = layer.roundness;
 
+  const bool geometryV2Enabled = HardwareConfig::Face::GEOMETRY_V2_ENABLED;
+  targetLeftEye_.useShapeV2 = geometryV2Enabled;
+  targetRightEye_.useShapeV2 = geometryV2Enabled;
+  if (geometryV2Enabled) {
+    const EmotionState& emo = emotionProvider_.getEmotionState();
+    const FaceShapeProfile shapeProfile = FaceGeometry::profileForExpression(currentExpression_, emo, layer.roundness);
+    targetLeftEye_.shape = FaceGeometry::resolveEyeShape(shapeProfile, EyeSide::Left);
+    targetRightEye_.shape = FaceGeometry::resolveEyeShape(shapeProfile, EyeSide::Right);
+  }
+
   baseOpenness_ = layer.openness;
   targetLeftEye_.openness = baseOpenness_;
   targetRightEye_.openness = baseOpenness_;
 }
-
 void FaceService::smoothEyes(unsigned long nowMs) {
   const unsigned long dtMs = nowMs - lastSmoothMs_;
   lastSmoothMs_ = nowMs;
@@ -1065,6 +1391,10 @@ void FaceService::smoothEyes(unsigned long nowMs) {
 
   leftEye_.expression = targetLeftEye_.expression;
   rightEye_.expression = targetRightEye_.expression;
+  leftEye_.useShapeV2 = targetLeftEye_.useShapeV2;
+  rightEye_.useShapeV2 = targetRightEye_.useShapeV2;
+  leftEye_.shape = targetLeftEye_.shape;
+  rightEye_.shape = targetRightEye_.shape;
 }
 
 float FaceService::easeInOutCubic(float t) const {
@@ -1099,6 +1429,34 @@ void FaceService::recordPerf(unsigned long nowMs, bool rendered, unsigned long r
   perf_.maxRenderUs = 0;
   perf_.avgRenderUsAccum = 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

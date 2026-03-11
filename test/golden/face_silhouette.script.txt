@@ -1,0 +1,15 @@
+monitor on
+# F4A silhouette sweep (exploration only)
+# Tier C
+face neutral
+face curious
+face happy
+# Tier B
+face angry
+face thinking
+face shy
+# Tier A
+face surprised
+face alert
+face listening
+face sad

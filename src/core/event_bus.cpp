@@ -163,7 +163,7 @@ void EventBus::flushTraceWindow(unsigned long nowMs) {
 
     const TraceSlot& slot = trace_[idx];
     const uint32_t avgUs = (slot.handled > 0) ? (slot.handlerTotalUs / slot.handled) : 0;
-    Serial.printf("[EVT_TRACE] rank=%d type=%d eps=%lu handlers=%lu avg_us=%lu max_us=%lu\n",
+    Serial.printf("[EVT_TRACE] rank=%d type=%d eps=%lu handlers=%lu avg_us=%lu max_us=%lu\r\n",
                   rank + 1,
                   idx,
                   static_cast<unsigned long>(slot.published),

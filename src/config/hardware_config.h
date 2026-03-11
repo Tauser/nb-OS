@@ -8,6 +8,11 @@
 #define NCOS_SIM_ULTRA 0
 #endif
 
+
+#ifndef NCOS_SIM_VISUAL
+#define NCOS_SIM_VISUAL 0
+#endif
+
 namespace HardwareConfig {
 
 namespace Display {
@@ -50,11 +55,65 @@ namespace Face {
   constexpr unsigned long BLINK_MIN_INTERVAL_MS = 5000;
   constexpr unsigned long BLINK_MAX_INTERVAL_MS = 9000;
   constexpr unsigned long LOOK_INTERVAL_MS = 2400;
+#elif NCOS_SIM_MODE && NCOS_SIM_VISUAL
+  constexpr unsigned long BLINK_MIN_INTERVAL_MS = 2600;
+  constexpr unsigned long BLINK_MAX_INTERVAL_MS = 4800;
+  constexpr unsigned long LOOK_INTERVAL_MS = 900;
 #else
   constexpr unsigned long BLINK_MIN_INTERVAL_MS = 3500;
   constexpr unsigned long BLINK_MAX_INTERVAL_MS = 6500;
   constexpr unsigned long LOOK_INTERVAL_MS = 1200;
 #endif
+
+  constexpr bool GEOMETRY_V2_ENABLED = true;
+}
+namespace FaceComposition {
+#if NCOS_SIM_MODE && NCOS_SIM_VISUAL
+  constexpr unsigned long BASE_MIN_HOLD_MS = 420;
+  constexpr unsigned long TRANSITION_COOLDOWN_MS = 140;
+  constexpr unsigned long CLIP_COOLDOWN_MS = 950;
+  constexpr unsigned long TRANSIENT_COOLDOWN_MS = 420;
+  constexpr unsigned long TRANSIENT_MIN_DURATION_MS = 140;
+#else
+  constexpr unsigned long BASE_MIN_HOLD_MS = 700;
+  constexpr unsigned long TRANSITION_COOLDOWN_MS = 280;
+  constexpr unsigned long CLIP_COOLDOWN_MS = 1400;
+  constexpr unsigned long TRANSIENT_COOLDOWN_MS = 800;
+  constexpr unsigned long TRANSIENT_MIN_DURATION_MS = 180;
+#endif
+}
+namespace FaceGaze {
+  constexpr float MAX_X_NORM = 0.95f;
+  constexpr float MAX_Y_NORM = 0.65f;
+
+  constexpr unsigned long SACCADE_SHORT_MS = 72;
+  constexpr unsigned long SACCADE_MEDIUM_MS = 108;
+  constexpr unsigned long SACCADE_LONG_MS = 152;
+
+  constexpr unsigned long SETTLE_SHORT_MS = 82;
+  constexpr unsigned long SETTLE_MEDIUM_MS = 112;
+  constexpr unsigned long SETTLE_LONG_MS = 142;
+
+  constexpr unsigned long FIXATION_SHORT_MS = 420;
+  constexpr unsigned long FIXATION_MEDIUM_MS = 640;
+  constexpr unsigned long FIXATION_LONG_MS = 900;
+
+  constexpr float OVERSHOOT_SHORT = 0.14f;
+  constexpr float OVERSHOOT_MEDIUM = 0.18f;
+  constexpr float OVERSHOOT_LONG = 0.22f;
+
+  constexpr unsigned long MICRO_DURATION_MS = 120;
+  constexpr unsigned long MICRO_INTERVAL_LISTENING_MS = 430;
+  constexpr unsigned long MICRO_INTERVAL_THINKING_MS = 520;
+  constexpr unsigned long MICRO_INTERVAL_DEFAULT_MS = 680;
+
+  constexpr float MICRO_AMPLITUDE_LISTENING = 0.055f;
+  constexpr float MICRO_AMPLITUDE_THINKING = 0.040f;
+  constexpr float MICRO_AMPLITUDE_DEFAULT = 0.028f;
+
+  constexpr unsigned long IDLE_SCAN_INTERVAL_MS = 5200;
+  constexpr float IDLE_SCAN_X_NORM = 0.34f;
+  constexpr float IDLE_SCAN_Y_NORM = -0.06f;
 }
 
 namespace Vision {
@@ -281,7 +340,11 @@ namespace Emotion {
 namespace EmotionOutput {
   constexpr bool FACE_ENABLE_EXPRESSION_FROM_EMOTION =
 #if NCOS_SIM_MODE
+  #if NCOS_SIM_VISUAL
+      true;
+  #else
       false;
+  #endif
 #else
       true;
 #endif
@@ -415,6 +478,19 @@ namespace Polish {
   constexpr unsigned long POST_INTERACTION_AWAKE_MIN_MS = 30000;
   constexpr unsigned long IDLE_ATTENTION_RECOVERY_AFTER_MS = 18000;
   constexpr unsigned long IDLE_ATTENTION_RECOVERY_INTERVAL_MS = 7000;
+}
+namespace MotionSync {
+  constexpr unsigned long GAZE_SYNC_INTERVAL_MS = 240;
+  constexpr float GAZE_MIN_DELTA_NORM = 0.09f;
+  constexpr float GAZE_MIN_YAW_DELTA_DEG = 2.2f;
+  constexpr float GAZE_YAW_SCALE = 0.72f;
+  constexpr float GAZE_TILT_SCALE = 0.48f;
+  constexpr unsigned long GAZE_POSE_DURATION_MS = 220;
+  constexpr unsigned long GAZE_CENTER_RECOVERY_MS = 900;
+  constexpr float GAZE_CENTER_YAW_THRESHOLD_DEG = 5.0f;
+
+  constexpr unsigned long CLIP_MOTION_COOLDOWN_MS = 420;
+  constexpr unsigned long CUE_COOLDOWN_MS = 180;
 }
 namespace Companion {
   constexpr unsigned long MOOD_UPDATE_INTERVAL_MS = 1200;
@@ -562,6 +638,12 @@ namespace System {
   constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 140;
   constexpr unsigned long VISION_POLL_INTERVAL_MS = 120;
   constexpr unsigned long MOTION_UPDATE_INTERVAL_MS = 90;
+#elif NCOS_SIM_MODE && NCOS_SIM_VISUAL
+  constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000;
+  constexpr unsigned long FACE_FRAME_INTERVAL_MS = 33; // ~30 FPS visual sim
+  constexpr unsigned long SENSOR_POLL_INTERVAL_MS = 120;
+  constexpr unsigned long VISION_POLL_INTERVAL_MS = 100;
+  constexpr unsigned long MOTION_UPDATE_INTERVAL_MS = 60;
 #elif NCOS_SIM_MODE
   constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000;
   constexpr unsigned long FACE_FRAME_INTERVAL_MS = 50;  // 20 FPS (smoother sim pacing)
@@ -579,55 +661,3 @@ namespace System {
 
 
 } // namespace HardwareConfig
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

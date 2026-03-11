@@ -177,7 +177,7 @@ bool ActionOrchestratorService::applyMotionCommand(ActionMotionCommand command) 
 
 void ActionOrchestratorService::logWinner(const ActionIntent& intent, const char* outcomeReason) {
 #if NCOS_SIM_MODE
-  Serial.printf("[ACTION_ARB] channel=%s winner=%s prio=%u hold=%lu reason=%s outcome=%s\n",
+  Serial.printf("[ACTION_ARB] channel=%s winner=%s prio=%u hold=%lu reason=%s outcome=%s\r\n",
                 channelName(intent.target),
                 sourceName(intent.source),
                 static_cast<unsigned int>(intent.priority),
@@ -194,7 +194,7 @@ void ActionOrchestratorService::logDropped(const ActionIntent& intent,
                                            const char* droppedReason,
                                            const ChannelOwnership& winner) const {
 #if NCOS_SIM_MODE
-  Serial.printf("[ACTION_ARB] channel=%s dropped=%s prio=%u reason=%s winner=%s winner_prio=%u winner_reason=%s\n",
+  Serial.printf("[ACTION_ARB] channel=%s dropped=%s prio=%u reason=%s winner=%s winner_prio=%u winner_reason=%s\r\n",
                 channelName(intent.target),
                 sourceName(intent.source),
                 static_cast<unsigned int>(intent.priority),

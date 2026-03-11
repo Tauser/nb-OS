@@ -3,13 +3,32 @@
 #include <stddef.h>
 
 #include "../models/expression_types.h"
+#include "../models/face_gaze_target.h"
+#include "../models/face_render_state.h"
 
 class IFaceController {
 public:
   virtual ~IFaceController() = default;
+
   virtual void requestExpression(ExpressionType expression,
                                  EyeAnimPriority priority,
                                  unsigned long holdMs = 0) = 0;
+
+  virtual void requestGazeTarget(const FaceGazeTarget& target) {
+    (void)target;
+  }
+
+  virtual void clearGazeTarget() {}
+
+  virtual bool requestClip(FaceClipKind kind, bool allowPreempt = true) {
+    (void)kind;
+    (void)allowPreempt;
+    return false;
+  }
+
+  virtual bool cancelClip() {
+    return false;
+  }
 
   // Optional runtime tuning API used by simulation/editor tooling.
   virtual bool tunerSetEnabled(bool enabled) {
@@ -38,5 +57,3 @@ public:
     return false;
   }
 };
-
-

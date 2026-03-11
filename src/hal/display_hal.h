@@ -20,6 +20,16 @@ public:
                float roundness,
                float upperLid,
                float lowerLid) override;
+  void drawEyeShape(int x,
+                    int y,
+                    int radius,
+                    float openness,
+                    float tiltDeg,
+                    float squashY,
+                    float stretchX,
+                    float upperLid,
+                    float lowerLid,
+                    const ResolvedEyeShape& shape) override;
   void drawPupil(int x, int y, int radius) override;
   void drawText(int x, int y, const char* text) override;
   void present() override;
@@ -27,6 +37,3 @@ public:
 private:
   IDisplay& display_;
 };
-
-
-

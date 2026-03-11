@@ -104,7 +104,7 @@ PowerService g_powerService(g_powerHal, g_eventBus);
 AttentionService g_attentionService(g_eventBus);
 GazeService g_gazeService(g_eventBus, g_faceService, g_motionService);
 GestureService g_gestureService(g_eventBus, g_faceService, g_motionService);
-MotionSyncService g_motionSyncService(g_eventBus, g_faceService, g_motionService);
+MotionSyncService g_motionSyncService(g_eventBus, g_faceService, g_motionService, g_faceService, g_motionService);
 ActionOrchestratorService g_actionOrchestratorService(g_faceService, g_motionService);
 RoutineService g_routineService(g_eventBus, g_emotionService, g_actionOrchestratorService, g_faceService, g_motionService);
 HealthMonitorService g_healthMonitorService(g_eventBus, g_diagnostics);
@@ -238,6 +238,7 @@ void AppFactory::update() {
   g_simTestInputService.update(now);
 #endif
 }
+
 
 
 

@@ -27,6 +27,19 @@ void DisplayHAL::drawEye(int x,
   display_.drawEye(x, y, radius, openness, tiltDeg, squashY, stretchX, roundness, upperLid, lowerLid);
 }
 
+void DisplayHAL::drawEyeShape(int x,
+                              int y,
+                              int radius,
+                              float openness,
+                              float tiltDeg,
+                              float squashY,
+                              float stretchX,
+                              float upperLid,
+                              float lowerLid,
+                              const ResolvedEyeShape& shape) {
+  display_.drawEyeShape(x, y, radius, openness, tiltDeg, squashY, stretchX, upperLid, lowerLid, shape);
+}
+
 void DisplayHAL::drawPupil(int x, int y, int radius) {
   display_.drawPupil(x, y, radius);
 }
@@ -38,6 +51,3 @@ void DisplayHAL::drawText(int x, int y, const char* text) {
 void DisplayHAL::present() {
   display_.present();
 }
-
-
-

@@ -216,6 +216,7 @@ void SimTestInputService::onEvent(const Event& event) {
     case EventType::EVT_ENGAGEMENT_CHANGED:
       lastEngagement_ = static_cast<float>(event.value) / 1000.0f;
       break;
+
     case EventType::EVT_MEMORY_UPDATED:
       lastMemoryTotal_ = event.value;
       break;
@@ -356,6 +357,45 @@ void SimTestInputService::processCommand(char* line, unsigned long nowMs) {
     return;
   }
 
+
+  if (strcmp(line, "clip cancel") == 0) {
+    if (faceController_.cancelClip()) {
+      Serial.println("[SIM_TEST] clip canceled");
+    } else {
+      Serial.println("[SIM_TEST] no active clip");
+    }
+    return;
+  }
+
+  if (strncmp(line, "clip ", 5) == 0) {
+    const char* kind = line + 5;
+    FaceClipKind clipKind = FaceClipKind::None;
+    if (strcmp(kind, "wake_up") == 0) {
+      clipKind = FaceClipKind::WakeUp;
+    } else if (strcmp(kind, "go_to_sleep") == 0) {
+      clipKind = FaceClipKind::GoToSleep;
+    } else if (strcmp(kind, "attention_recovery") == 0) {
+      clipKind = FaceClipKind::AttentionRecovery;
+    } else if (strcmp(kind, "thinking_loop") == 0) {
+      clipKind = FaceClipKind::ThinkingLoop;
+    } else if (strcmp(kind, "soft_listen") == 0) {
+      clipKind = FaceClipKind::SoftListen;
+    } else if (strcmp(kind, "shy_retract") == 0) {
+      clipKind = FaceClipKind::ShyRetract;
+    } else if (strcmp(kind, "happy_ack") == 0) {
+      clipKind = FaceClipKind::HappyAck;
+    } else {
+      Serial.println("[SIM_TEST] clip unknown");
+      return;
+    }
+
+    if (faceController_.requestClip(clipKind, true)) {
+      Serial.println("[SIM_TEST] clip started");
+    } else {
+      Serial.println("[SIM_TEST] clip blocked by cooldown/ownership");
+    }
+    return;
+  }
 
   if (strcmp(line, "tuner on") == 0) {
     if (faceController_.tunerSetEnabled(true)) {
@@ -634,6 +674,7 @@ void SimTestInputService::printEventSnapshot(const Event& event) {
       Serial.println(event.value);
       break;
 
+
     case EventType::EVT_MEMORY_UPDATED:
       Serial.print("[SIM_MON] memory_total=");
       Serial.println(event.value);
@@ -680,16 +721,27 @@ void SimTestInputService::printHelp() const {
   Serial.println("  monitor on|off|lean|full");
   Serial.println("  status");
   Serial.println("  face neutral|curious|happy|alert|angry|sad|surprised|shy|listening|thinking");
+  Serial.println("  clip wake_up|go_to_sleep|attention_recovery|thinking_loop|soft_listen|shy_retract|happy_ack|cancel");
   Serial.println("  tuner on|off|status|reset");
-  Serial.println("  tuner preset neutral|curious|sleepy|happy_soft|focused|shy|surprised|low_energy|listening|thinking");
+  Serial.println("  tuner preset neutral_premium|curious_soft|sleepy_sink|warm_happy|focused_listen|shy_peek|surprised_open|low_energy_flat|attention_lock|thinking_side");
   Serial.println("  tuner set <param> <value>  (width height round tilt space upper lower open)");
   Serial.println("  touch | shake | tilt | fall | idle | voice");
   Serial.println("  intent hello|status|sleep|wake|photo");
   Serial.println("  safe on|off");
   Serial.println("  ota check [version]");
   Serial.println("  ota apply");
+  Serial.println("  presets legacy aliases still accepted: neutral|curious|sleepy|happy_soft|focused|shy|surprised|low_energy|listening|thinking");
   Serial.println("  help");
 }
+
+
+
+
+
+
+
+
+
 
 
 

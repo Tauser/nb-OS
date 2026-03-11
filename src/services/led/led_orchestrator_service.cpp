@@ -5,6 +5,7 @@
 
 #include "../../config/hardware_config.h"
 #include "../../models/event.h"
+#include "../../models/face_sync_cue.h"
 #include "../../models/health_snapshot.h"
 #include "../../models/routine_state.h"
 #include "../../utils/math_utils.h"
@@ -41,6 +42,7 @@ void LedOrchestratorService::init() {
   eventBus_.subscribe(EventType::EVT_DIALOGUE_RESPONSE, this);
   eventBus_.subscribe(EventType::EVT_ATTENTION_CHANGED, this);
   eventBus_.subscribe(EventType::EVT_BEHAVIOR_ACTION, this);
+  eventBus_.subscribe(EventType::EVT_FACE_SYNC_CUE, this);
   eventBus_.subscribe(EventType::EVT_ROUTINE_STATE_CHANGED, this);
 
   eventBus_.subscribe(EventType::EVT_EMOTION_CHANGED, this);
@@ -76,6 +78,13 @@ void LedOrchestratorService::update(unsigned long nowMs) {
 
 void LedOrchestratorService::onEvent(const Event& event) {
   const unsigned long nowMs = eventTimeOrNow(event);
+
+  auto extendUntil = [nowMs](unsigned long& target, unsigned long holdMs) {
+    const unsigned long candidate = nowMs + holdMs;
+    if (target < candidate) {
+      target = candidate;
+    }
+  };
 
   switch (event.type) {
     case EventType::BootStarted:
@@ -169,6 +178,42 @@ void LedOrchestratorService::onEvent(const Event& event) {
       }
       break;
 
+    case EventType::EVT_FACE_SYNC_CUE: {
+      const FaceSyncCue cue = static_cast<FaceSyncCue>(event.value);
+      switch (cue) {
+        case FaceSyncCue::ClipWakeUp:
+          extendUntil(attentionPulseUntilMs_, 320);
+          break;
+        case FaceSyncCue::ClipGoToSleep:
+          extendUntil(processingUntilMs_, 180);
+          break;
+        case FaceSyncCue::ClipAttentionRecovery:
+          extendUntil(attentionPulseUntilMs_, 280);
+          break;
+        case FaceSyncCue::ClipThinkingLoop:
+          extendUntil(processingUntilMs_, 240);
+          break;
+        case FaceSyncCue::ClipSoftListen:
+          extendUntil(listeningUntilMs_, 420);
+          break;
+        case FaceSyncCue::ClipShyRetract:
+          extendUntil(processingUntilMs_, 180);
+          break;
+        case FaceSyncCue::ClipHappyAck:
+          extendUntil(intentUntilMs_, 220);
+          break;
+        case FaceSyncCue::GazeLeft:
+        case FaceSyncCue::GazeRight:
+          extendUntil(attentionPulseUntilMs_, 130);
+          break;
+        case FaceSyncCue::GazeCenter:
+        case FaceSyncCue::ClipEnded:
+        case FaceSyncCue::None:
+        default:
+          break;
+      }
+      break;
+    }
     case EventType::EVT_ROUTINE_STATE_CHANGED:
       if (static_cast<RoutineState>(event.value) == RoutineState::Listening) {
         listeningUntilMs_ = nowMs + HardwareConfig::LedInteraction::LISTENING_HOLD_MS;
@@ -452,4 +497,11 @@ void LedOrchestratorService::driveSmooth(const RgbTarget& target, unsigned long 
   ledHal_.setRgb8(r, g, b);
   ledHal_.setMono(channelMax(r, g, b));
 }
+
+
+
+
+
+
+
 

@@ -13,6 +13,22 @@ constexpr unsigned long kIdleRefreshMs = 240;
 bool isDifferent(float a, float b, float eps) {
   return fabsf(a - b) > eps;
 }
+
+bool shapeDifferent(const ResolvedEyeShape& a, const ResolvedEyeShape& b) {
+  if (a.mode != b.mode) return true;
+
+  if (isDifferent(a.topWidthScale, b.topWidthScale, kGeomEpsilon)) return true;
+  if (isDifferent(a.bottomWidthScale, b.bottomWidthScale, kGeomEpsilon)) return true;
+  if (isDifferent(a.leftCantDeg, b.leftCantDeg, kTiltEpsilon)) return true;
+  if (isDifferent(a.rightCantDeg, b.rightCantDeg, kTiltEpsilon)) return true;
+
+  if (isDifferent(a.roundTopLeft, b.roundTopLeft, kGeomEpsilon)) return true;
+  if (isDifferent(a.roundTopRight, b.roundTopRight, kGeomEpsilon)) return true;
+  if (isDifferent(a.roundBottomLeft, b.roundBottomLeft, kGeomEpsilon)) return true;
+  if (isDifferent(a.roundBottomRight, b.roundBottomRight, kGeomEpsilon)) return true;
+
+  return false;
+}
 }
 
 FaceRenderer::FaceRenderer(IDisplayPort& displayPort)
@@ -41,27 +57,53 @@ bool FaceRenderer::render(const EyeModel& leftEye, const EyeModel& rightEye) {
     displayPort_.clearRect(dirty.x, dirty.y, dirty.w, dirty.h);
   }
 
-  displayPort_.drawEye(leftEye.centerX,
-                       leftEye.centerY,
-                       leftEye.eyeRadius,
-                       leftEye.openness,
-                       leftEye.tiltDeg,
-                       leftEye.squashY,
-                       leftEye.stretchX,
-                       leftEye.roundness,
-                       leftEye.upperLid,
-                       leftEye.lowerLid);
+  if (leftEye.useShapeV2) {
+    displayPort_.drawEyeShape(leftEye.centerX,
+                              leftEye.centerY,
+                              leftEye.eyeRadius,
+                              leftEye.openness,
+                              leftEye.tiltDeg,
+                              leftEye.squashY,
+                              leftEye.stretchX,
+                              leftEye.upperLid,
+                              leftEye.lowerLid,
+                              leftEye.shape);
+  } else {
+    displayPort_.drawEye(leftEye.centerX,
+                         leftEye.centerY,
+                         leftEye.eyeRadius,
+                         leftEye.openness,
+                         leftEye.tiltDeg,
+                         leftEye.squashY,
+                         leftEye.stretchX,
+                         leftEye.roundness,
+                         leftEye.upperLid,
+                         leftEye.lowerLid);
+  }
 
-  displayPort_.drawEye(rightEye.centerX,
-                       rightEye.centerY,
-                       rightEye.eyeRadius,
-                       rightEye.openness,
-                       rightEye.tiltDeg,
-                       rightEye.squashY,
-                       rightEye.stretchX,
-                       rightEye.roundness,
-                       rightEye.upperLid,
-                       rightEye.lowerLid);
+  if (rightEye.useShapeV2) {
+    displayPort_.drawEyeShape(rightEye.centerX,
+                              rightEye.centerY,
+                              rightEye.eyeRadius,
+                              rightEye.openness,
+                              rightEye.tiltDeg,
+                              rightEye.squashY,
+                              rightEye.stretchX,
+                              rightEye.upperLid,
+                              rightEye.lowerLid,
+                              rightEye.shape);
+  } else {
+    displayPort_.drawEye(rightEye.centerX,
+                         rightEye.centerY,
+                         rightEye.eyeRadius,
+                         rightEye.openness,
+                         rightEye.tiltDeg,
+                         rightEye.squashY,
+                         rightEye.stretchX,
+                         rightEye.roundness,
+                         rightEye.upperLid,
+                         rightEye.lowerLid);
+  }
 
   displayPort_.present();
 
@@ -129,6 +171,10 @@ bool FaceRenderer::hasMeaningfulChange(const EyeModel& leftEye, const EyeModel& 
 
   if (isDifferent(leftEye.roundness, lastLeft_.roundness, kGeomEpsilon)) return true;
   if (isDifferent(rightEye.roundness, lastRight_.roundness, kGeomEpsilon)) return true;
+
+  if (leftEye.useShapeV2 != lastLeft_.useShapeV2 || rightEye.useShapeV2 != lastRight_.useShapeV2) return true;
+  if (shapeDifferent(leftEye.shape, lastLeft_.shape)) return true;
+  if (shapeDifferent(rightEye.shape, lastRight_.shape)) return true;
 
   return false;
 }

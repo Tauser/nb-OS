@@ -29,3 +29,9 @@ Microfone e voz
 
 ## Etapa 10
 Visão e cloud
+
+## Trilha complementar
+Face Engine Premium ++
+
+- Ordem oficial: `F1 Geometry V2 -> F2 Gaze/Saccades -> F4 Preset Library -> F5 Composition/Arbitration -> F3 Long Motion Clips -> F6 Multimodal Sync/Tooling`
+- Documento oficial: `docs/face_engine_premium_roadmap.md`
